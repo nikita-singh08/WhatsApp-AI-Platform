@@ -1,0 +1,36 @@
+{
+  "name": "whatsapp-ai-platform",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Multi-tenant SaaS WhatsApp AI Platform",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace=api --workspace=web --parallel",
+    "build:shared": "npm run build --workspace=@whatsai/shared",
+    "build:db": "npm run build --workspace=@whatsai/database",
+    "build:integrations": "npm run build --workspace=@whatsai/integrations",
+    "build:ai": "npm run build --workspace=@whatsai/ai",
+    "build:notifications": "npm run build --workspace=@whatsai/notifications",
+    "build:apps": "npm run build --workspace=api --workspace=web",
+    "build": "npm run build:shared && npm run build:db && npm run build:integrations && npm run build:ai && npm run build:notifications && npm run build:apps",
+    "test": "npm run test --workspace=api --workspace=web",
+    "lint": "npm run lint --workspace=api --workspace=web",
+    "db:migrate": "npx prisma migrate dev --schema=packages/database/prisma/schema.prisma",
+    "db:generate": "npx prisma generate --schema=packages/database/prisma/schema.prisma",
+    "db:seed": "npx prisma db seed --schema=packages/database/prisma/schema.prisma"
+  },
+  "devDependencies": {
+    "eslint": "^8.0.0",
+    "prettier": "^3.0.0",
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "@types/jsonwebtoken": "^9.0.10",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.15.1",
+    "jsonwebtoken": "^9.0.3"
+  }
+}

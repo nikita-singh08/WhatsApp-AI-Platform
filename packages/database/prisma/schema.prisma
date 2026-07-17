@@ -1,0 +1,630 @@
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [vector]
+}
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+model User {
+  id                   String            @id @default(uuid()) @db.Uuid
+  email                String            @unique
+  name                 String?
+  avatarUrl            String?           @map("avatar_url")
+  authProvider         String            @default("email") @map("auth_provider")
+  externalAuthId       String?           @map("external_auth_id")
+  passwordHash         String?           @map("password_hash")
+  emailVerifiedAt      DateTime?         @map("email_verified_at")
+  phoneNumber          String?           @map("phone_number")
+  phoneVerifiedAt      DateTime?         @map("phone_verified_at")
+  isPlatformAdmin      Boolean           @default(false) @map("is_platform_admin")
+  loginAttempts        Int               @default(0) @map("login_attempts")
+  lockedUntil          DateTime?         @map("locked_until")
+  createdAt            DateTime          @default(now()) @map("created_at")
+  updatedAt            DateTime          @updatedAt @map("updated_at")
+
+  mfaMethods           UserMfaMethod[]
+  memberships          OrganizationMember[]
+  sentInvitations      Invitation[]      @relation("SentInvitations")
+  assignedConversations Conversation[]   @relation("AssignedConversations")
+  internalNotes        InternalNote[]
+  createdAgentVersions AgentVersion[]
+  approvedTools        ToolExecution[]
+
+  @@map("users")
+}
+
+model UserMfaMethod {
+  id               String   @id @default(uuid()) @db.Uuid
+  userId           String   @map("user_id") @db.Uuid
+  method           String   @default("totp")
+  secretEncrypted  String   @map("secret_encrypted")
+  isEnabled        Boolean  @default(false) @map("is_enabled")
+  verifiedAt       DateTime? @map("verified_at")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, method])
+  @@map("user_mfa_methods")
+}
+
+model Organization {
+  id                      String            @id @default(uuid()) @db.Uuid
+  name                    String
+  slug                    String?           @unique
+  logoUrl                 String?           @map("logo_url")
+  industry                String?
+  timezone                String            @default("UTC")
+  defaultLanguage         String            @default("en") @map("default_language")
+  memoryEnabled           Boolean           @default(true) @map("memory_enabled")
+  status                  String            @default("active")
+  deletionScheduledAt     DateTime?         @map("deletion_scheduled_at")
+  createdAt               DateTime          @default(now()) @map("created_at")
+  updatedAt               DateTime          @updatedAt @map("updated_at")
+
+  members                 OrganizationMember[]
+  invitations             Invitation[]
+  onboardingProgress      OnboardingProgress?
+  whatsappAccounts        WhatsappAccount[]
+  agents                  Agent[]
+  contacts                Contact[]
+  conversations           Conversation[]
+  messages                Message[]
+  internalNotes           InternalNote[]
+  webhookEvents           WebhookEvent[]
+  knowledgeBases          KnowledgeBase[]
+  knowledgeDocuments      KnowledgeDocument[]
+  knowledgeChunks         KnowledgeChunk[]
+  memories                Memory[]
+  agentRuns               AgentRun[]
+  toolExecutions          ToolExecution[]
+  integrations            Integration[]
+  subscription            Subscription?
+  usageRecords            UsageRecord[]
+  dailyCostTracking       DailyCostTracking[]
+  messageTemplates        MessageTemplate[]
+  notificationPreferences NotificationPreference[]
+  auditLogs               AuditLog[]
+  qualityRatingHistory    QualityRatingHistory[]
+
+  @@map("organizations")
+}
+
+model OrganizationMember {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @map("organization_id") @db.Uuid
+  userId         String       @map("user_id") @db.Uuid
+  role           String       // owner, admin, operator, readonly
+  billingAccess  Boolean      @default(false) @map("billing_access")
+  status         String       @default("active")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+  @@map("organization_members")
+}
+
+model Invitation {
+  id                 String       @id @default(uuid()) @db.Uuid
+  organizationId     String       @map("organization_id") @db.Uuid
+  invitedByUserId    String       @map("invited_by_user_id") @db.Uuid
+  email              String
+  role               String
+  token              String       @unique
+  status             String       @default("pending") // pending, accepted, expired, cancelled
+  expiresAt          DateTime     @map("expires_at")
+  createdAt          DateTime     @default(now()) @map("created_at")
+  updatedAt          DateTime     @updatedAt @map("updated_at")
+
+  organization       Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invitedBy          User         @relation("SentInvitations", fields: [invitedByUserId], references: [id], onDelete: Cascade)
+
+  @@map("invitations")
+}
+
+model OnboardingProgress {
+  id                 String       @id @default(uuid()) @db.Uuid
+  organizationId     String       @unique @map("organization_id") @db.Uuid
+  whatsappConnected  Boolean      @default(false) @map("whatsapp_connected")
+  agentCreated       Boolean      @default(false) @map("agent_created")
+  knowledgeUploaded  Boolean      @default(false) @map("knowledge_uploaded")
+  firstAiReply       Boolean      @default(false) @map("first_ai_reply")
+  billingConfigured  Boolean      @default(false) @map("billing_configured")
+  completedAt        DateTime?    @map("completed_at")
+  createdAt          DateTime     @default(now()) @map("created_at")
+  updatedAt          DateTime     @updatedAt @map("updated_at")
+
+  organization       Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("onboarding_progress")
+}
+
+model WhatsappAccount {
+  id                         String                  @id @default(uuid()) @db.Uuid
+  organizationId             String                  @map("organization_id") @db.Uuid
+  metaBusinessAccountId      String?                 @map("meta_business_account_id")
+  whatsappBusinessAccountId  String?                 @map("whatsapp_business_account_id")
+  phoneNumberId              String                  @unique @map("phone_number_id")
+  displayPhoneNumber         String?                 @map("display_phone_number")
+  verifiedName               String?                 @map("verified_name")
+  accessTokenEncrypted       String                  @map("access_token_encrypted")
+  tokenExpiresAt             DateTime?               @map("token_expires_at")
+  qualityRating              String                  @default("unknown") @map("quality_rating")
+  qualityRatingUpdatedAt     DateTime?               @map("quality_rating_updated_at")
+  messagingTier              String                  @default("TIER_250") @map("messaging_tier")
+  dailyOutboundCount         Int                     @default(0) @map("daily_outbound_count")
+  dailyOutboundResetAt       DateTime?               @map("daily_outbound_reset_at")
+  webhookStatus              String                  @default("unknown") @map("webhook_status")
+  lastWebhookEventAt         DateTime?               @map("last_webhook_event_at")
+  registrationStatus         String                  @default("unknown") @map("registration_status")
+  setupMethod                String?                 @map("setup_method")
+  isActive                   Boolean                 @default(true) @map("is_active")
+  createdAt                  DateTime                @default(now()) @map("created_at")
+  updatedAt                  DateTime                @updatedAt @map("updated_at")
+
+  organization               Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  agents                     WhatsappAccountAgent[]
+  conversations              Conversation[]
+  webhookEvents              WebhookEvent[]
+  messageTemplates           MessageTemplate[]
+  qualityRatingHistory       QualityRatingHistory[]
+
+  @@map("whatsapp_accounts")
+}
+
+model Agent {
+  id                     String                 @id @default(uuid()) @db.Uuid
+  organizationId         String                 @map("organization_id") @db.Uuid
+  name                   String
+  type                   String                 // support, sales, booking, billing, faq, custom
+  description            String?
+  systemPrompt           String                 @map("system_prompt")
+  tone                   String?
+  language               String?
+  businessRules          Json                   @default("[]") @map("business_rules")
+  escalationConfig       Json                   @map("escalation_config")
+  strictKnowledgeMode    Boolean                @default(false) @map("strict_knowledge_mode")
+  fallbackMessage        String                 @default("I don't have enough information to answer that question. Let me connect you with a team member.") @map("fallback_message")
+  humanEscalationEnabled Boolean                @default(true) @map("human_escalation_enabled")
+  workingHours           Json?                  @map("working_hours")
+  outsideHoursMode       String                 @default("auto_reply") @map("outside_hours_mode")
+  outsideHoursMessage    String                 @default("Thanks for reaching out! Our team is available during business hours. We'll respond as soon as we're back.") @map("outside_hours_message")
+  aiDisclosureEnabled    Boolean                @default(true) @map("ai_disclosure_enabled")
+  aiDisclosureMessage    String                 @default("Hi! I'm an AI assistant for {{business_name}}. How can I help you today?") @map("ai_disclosure_message")
+  allowedTools           Json                   @default("[\"search_knowledge_base\", \"create_human_handoff\", \"get_business_hours\", \"send_internal_notification\"]") @map("allowed_tools")
+  status                 String                 @default("draft")
+
+  createdAt              DateTime               @default(now()) @map("created_at")
+  updatedAt              DateTime               @updatedAt @map("updated_at")
+
+  organization           Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  whatsappAccounts       WhatsappAccountAgent[]
+  conversations          Conversation[]
+  versions               AgentVersion[]
+  agentRuns              AgentRun[]
+
+  @@map("agents")
+}
+
+model AgentVersion {
+  id               String   @id @default(uuid()) @db.Uuid
+  agentId          String   @map("agent_id") @db.Uuid
+  versionNumber    Int      @map("version_number")
+  systemPrompt     String   @map("system_prompt")
+  businessRules    Json?    @map("business_rules")
+  escalationConfig Json?    @map("escalation_config")
+  config           Json
+  createdByUserId  String   @map("created_by_user_id") @db.Uuid
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  agent            Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  createdByUser    User     @relation(fields: [createdByUserId], references: [id])
+
+  @@map("agent_versions")
+}
+
+model WhatsappAccountAgent {
+  id                String          @id @default(uuid()) @db.Uuid
+  organizationId    String          @map("organization_id") @db.Uuid
+  whatsappAccountId String          @map("whatsapp_account_id") @db.Uuid
+  agentId           String          @map("agent_id") @db.Uuid
+  isDefault         Boolean         @default(true) @map("is_default")
+  createdAt         DateTime        @default(now()) @map("created_at")
+
+  whatsappAccount   WhatsappAccount @relation(fields: [whatsappAccountId], references: [id], onDelete: Cascade)
+  agent             Agent           @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@unique([whatsappAccountId, agentId])
+  @@map("whatsapp_account_agents")
+}
+
+model Contact {
+  id             String         @id @default(uuid()) @db.Uuid
+  organizationId String         @map("organization_id") @db.Uuid
+  waId           String         @map("wa_id")
+  phoneNumber    String?        @map("phone_number")
+  name           String?
+  metadata       Json?
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  conversations  Conversation[]
+  memories       Memory[]
+
+  @@unique([organizationId, waId])
+  @@map("contacts")
+}
+
+model Conversation {
+  id                      String         @id @default(uuid()) @db.Uuid
+  organizationId          String         @map("organization_id") @db.Uuid
+  whatsappAccountId       String         @map("whatsapp_account_id") @db.Uuid
+  contactId               String         @map("contact_id") @db.Uuid
+  assignedUserId          String?        @map("assigned_user_id") @db.Uuid
+  currentAgentId          String?        @map("current_agent_id") @db.Uuid
+  status                  String         @default("new")
+  lastMessageAt           DateTime?      @map("last_message_at")
+  lastCustomerMessageAt   DateTime?      @map("last_customer_message_at")
+  windowExpiresAt         DateTime?      @map("window_expires_at")
+  shortTermMemory         Json?          @map("short_term_memory")
+  createdAt               DateTime       @default(now()) @map("created_at")
+  updatedAt               DateTime       @updatedAt @map("updated_at")
+
+  organization            Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  whatsappAccount         WhatsappAccount @relation(fields: [whatsappAccountId], references: [id], onDelete: Cascade)
+  contact                 Contact        @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  assignedUser            User?          @relation("AssignedConversations", fields: [assignedUserId], references: [id])
+  currentAgent            Agent?         @relation(fields: [currentAgentId], references: [id])
+  messages                Message[]
+  internalNotes           InternalNote[]
+
+  @@map("conversations")
+}
+
+model Message {
+  id                    String          @id @default(uuid()) @db.Uuid
+  organizationId        String          @map("organization_id") @db.Uuid
+  conversationId        String          @map("conversation_id") @db.Uuid
+  direction             String          // inbound, outbound
+  senderType            String          @map("sender_type") // customer, ai, human, system
+  whatsappMessageId     String?         @unique @map("whatsapp_message_id")
+  messageType           String          @map("message_type")
+  textBody              String?         @map("text_body")
+  mediaUrl              String?         @map("media_url")
+  mediaMimeType         String?         @map("media_mime_type")
+  mediaCaption          String?         @map("media_caption")
+  locationLatitude      Decimal?        @map("location_latitude")
+  locationLongitude     Decimal?        @map("location_longitude")
+  templateName          String?         @map("template_name")
+  templateVariables     Json?           @map("template_variables")
+  rawPayload            Json?           @map("raw_payload")
+  deliveryStatus        String          @default("pending") @map("delivery_status")
+  deliveryFailureReason String?         @map("delivery_failure_reason")
+  retryCount            Int             @default(0) @map("retry_count")
+  agentRunId            String?         @map("agent_run_id") @db.Uuid
+  createdAt             DateTime        @default(now()) @map("created_at")
+
+  organization          Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  conversation          Conversation    @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  agentRun              AgentRun?       @relation(fields: [agentRunId], references: [id])
+
+  @@map("messages")
+}
+
+model InternalNote {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @map("organization_id") @db.Uuid
+  conversationId String       @map("conversation_id") @db.Uuid
+  userId         String       @map("user_id") @db.Uuid
+  content        String
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("internal_notes")
+}
+
+model WebhookEvent {
+  id                String          @id @default(uuid()) @db.Uuid
+  provider          String          // meta, stripe
+  eventId           String?         @unique @map("event_id")
+  eventType         String?         @map("event_type")
+  organizationId    String?         @map("organization_id") @db.Uuid
+  whatsappAccountId String?         @map("whatsapp_account_id") @db.Uuid
+  payload           Json
+  status            String          @default("received")
+  errorMessage      String?         @map("error_message")
+  retryCount        Int             @default(0) @map("retry_count")
+  createdAt         DateTime        @default(now()) @map("created_at")
+  processedAt       DateTime?       @map("processed_at")
+
+  organization      Organization?   @relation(fields: [organizationId], references: [id])
+  whatsappAccount   WhatsappAccount? @relation(fields: [whatsappAccountId], references: [id])
+
+  @@map("webhook_events")
+}
+
+model KnowledgeBase {
+  id             String              @id @default(uuid()) @db.Uuid
+  organizationId String              @map("organization_id") @db.Uuid
+  name           String
+  description    String?
+  status         String              @default("active")
+  createdAt      DateTime            @default(now()) @map("created_at")
+  updatedAt      DateTime            @updatedAt @map("updated_at")
+
+  organization   Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  documents      KnowledgeDocument[]
+
+  @@map("knowledge_bases")
+}
+
+model KnowledgeDocument {
+  id                    String          @id @default(uuid()) @db.Uuid
+  organizationId        String          @map("organization_id") @db.Uuid
+  knowledgeBaseId       String          @map("knowledge_base_id") @db.Uuid
+  title                 String
+  sourceType            String          @map("source_type") // upload, faq, url
+  sourceUrl             String?         @map("source_url")
+  fileUrl               String?         @map("file_url")
+  fileName              String?         @map("file_name")
+  fileSizeBytes         Int?            @map("file_size_bytes")
+  mimeType              String?         @map("mime_type")
+  processingStatus      String          @default("pending") @map("processing_status")
+  errorMessage          String?         @map("error_message")
+  embeddingModelVersion String?         @map("embedding_model_version")
+  lastUpdatedContentAt  DateTime        @default(now()) @map("last_updated_content_at")
+  stalenessWarning      Boolean         @default(false) @map("staleness_warning")
+  createdAt             DateTime        @default(now()) @map("created_at")
+  updatedAt             DateTime        @updatedAt @map("updated_at")
+
+  organization          Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  knowledgeBase         KnowledgeBase   @relation(fields: [knowledgeBaseId], references: [id], onDelete: Cascade)
+  chunks                KnowledgeChunk[]
+
+  @@map("knowledge_documents")
+}
+
+model KnowledgeChunk {
+  id                    String            @id @default(uuid()) @db.Uuid
+  organizationId        String            @map("organization_id") @db.Uuid
+  knowledgeDocumentId   String            @map("knowledge_document_id") @db.Uuid
+  chunkIndex            Int               @map("chunk_index")
+  content               String
+  embedding             Unsupported("vector(768)")?
+  embeddingModelVersion String?           @map("embedding_model_version")
+  sectionTitle          String?           @map("section_title")
+  metadata              Json?
+  createdAt             DateTime          @default(now()) @map("created_at")
+
+  organization          Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  document              KnowledgeDocument @relation(fields: [knowledgeDocumentId], references: [id], onDelete: Cascade)
+
+  @@map("knowledge_chunks")
+}
+
+model Memory {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @map("organization_id") @db.Uuid
+  contactId      String       @map("contact_id") @db.Uuid
+  conversationId String?      @map("conversation_id") @db.Uuid
+  type           String       // conversation_summary, customer_fact, preference, business_context
+  content        String
+  importance     Int          @default(1)
+  embedding      Unsupported("vector(768)")?
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  contact        Contact      @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@map("memories")
+}
+
+model AgentRun {
+  id                       String         @id @default(uuid()) @db.Uuid
+  organizationId           String         @map("organization_id") @db.Uuid
+  agentId                  String         @map("agent_id") @db.Uuid
+  conversationId           String         @map("conversation_id") @db.Uuid
+  inputMessageId           String?        @map("input_message_id") @db.Uuid
+  outputMessageId          String?        @map("output_message_id") @db.Uuid
+  status                   String
+  model                    String?
+  promptTokens             Int?           @map("prompt_tokens")
+  completionTokens         Int?           @map("completion_tokens")
+  totalTokens              Int?           @map("total_tokens")
+  costCents                Int?           @map("cost_cents")
+  latencyMs                Int?           @map("latency_ms")
+  intentClassified         String?        @map("intent_classified")
+  sentiment                String?
+  confidenceScore          Decimal?       @map("confidence_score") @db.Decimal(5, 2)
+  escalationTriggered      Boolean        @default(false) @map("escalation_triggered")
+  escalationReason         String?        @map("escalation_reason")
+  knowledgeChunksUsed      Json?          @map("knowledge_chunks_used")
+  memoryFactsUsed          Json?          @map("memory_facts_used")
+  toolsCalled              Json?          @map("tools_called")
+  validationResult         String?        @map("validation_result")
+  validationFailureReason  String?        @map("validation_failure_reason")
+  metadata                 Json?
+  errorMessage             String?        @map("error_message")
+  isTest                   Boolean        @default(false) @map("is_test")
+  createdAt                DateTime       @default(now()) @map("created_at")
+  completedAt              DateTime?      @map("completed_at")
+
+  organization             Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  agent                    Agent          @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  outputMessages           Message[]
+
+  @@map("agent_runs")
+}
+
+model ToolExecution {
+  id                 String     @id @default(uuid()) @db.Uuid
+  organizationId     String     @map("organization_id") @db.Uuid
+  agentRunId         String     @map("agent_run_id") @db.Uuid
+  toolName           String     @map("tool_name")
+  input              Json?
+  output             Json?
+  status             String
+  requiresApproval   Boolean    @default(false) @map("requires_approval")
+  approvedByUserId   String?    @map("approved_by_user_id") @db.Uuid
+  approvedAt         DateTime?  @map("approved_at")
+  errorMessage       String?    @map("error_message")
+  durationMs         Int?       @map("duration_ms")
+  createdAt          DateTime   @default(now()) @map("created_at")
+  completedAt        DateTime?  @map("completed_at")
+
+  organization       Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  approvedBy         User?      @relation(fields: [approvedByUserId], references: [id])
+
+  @@map("tool_executions")
+}
+
+model Integration {
+  id                   String       @id @default(uuid()) @db.Uuid
+  organizationId       String       @map("organization_id") @db.Uuid
+  provider             String       // google_calendar, google_sheets, shopify, hubspot, slack
+  status               String       @default("connected")
+  healthCheckFailures  Int          @default(0) @map("health_check_failures")
+  credentialsEncrypted String?      @map("credentials_encrypted")
+  config               Json?
+  createdAt            DateTime     @default(now()) @map("created_at")
+  updatedAt            DateTime     @updatedAt @map("updated_at")
+
+  organization         Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, provider])
+  @@map("integrations")
+}
+
+model Subscription {
+  id                         String       @id @default(uuid()) @db.Uuid
+  organizationId             String       @unique @map("organization_id") @db.Uuid
+  stripeCustomerId           String?      @map("stripe_customer_id")
+  stripeSubscriptionId       String?      @map("stripe_subscription_id")
+  plan                       String       // free, starter, growth, agency, enterprise
+  billingInterval            String       @default("monthly") @map("billing_interval")
+  status                     String
+  gracePeriodEndsAt          DateTime?    @map("grace_period_ends_at")
+  suspensionDate             DateTime?    @map("suspension_date")
+  dataDeletionScheduledAt    DateTime?    @map("data_deletion_scheduled_at")
+  currentPeriodStart         DateTime?    @map("current_period_start")
+  currentPeriodEnd           DateTime?    @map("current_period_end")
+  createdAt                  DateTime     @default(now()) @map("created_at")
+  updatedAt                  DateTime     @updatedAt @map("updated_at")
+
+  organization               Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("subscriptions")
+}
+
+model UsageRecord {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @map("organization_id") @db.Uuid
+  metric         String       // billable_messages, ai_tokens, kb_storage_bytes, active_agents, team_seats
+  quantity       Int
+  periodStart    DateTime     @map("period_start")
+  periodEnd      DateTime     @map("period_end")
+  metadata       Json?
+  createdAt      DateTime     @default(now()) @map("created_at")
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("usage_records")
+}
+
+model DailyCostTracking {
+  id                  String       @id @default(uuid()) @db.Uuid
+  organizationId      String       @map("organization_id") @db.Uuid
+  date                DateTime     @db.Date
+  totalTokens         Int          @default(0) @map("total_tokens")
+  estimatedCostCents  Int          @default(0) @map("estimated_cost_cents")
+  costCapCents        Int          @map("cost_cap_cents")
+  capReached          Boolean      @default(false) @map("cap_reached")
+  capReachedAt        DateTime?    @map("cap_reached_at")
+  createdAt           DateTime     @default(now()) @map("created_at")
+  updatedAt           DateTime     @updatedAt @map("updated_at")
+
+  organization        Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, date])
+  @@map("daily_cost_tracking")
+}
+
+model MessageTemplate {
+  id                String          @id @default(uuid()) @db.Uuid
+  organizationId    String          @map("organization_id") @db.Uuid
+  whatsappAccountId String          @map("whatsapp_account_id") @db.Uuid
+  name              String
+  language          String
+  category          String          // marketing, utility, authentication
+  components        Json
+  metaTemplateId    String?         @map("meta_template_id")
+  status            String          @default("draft")
+  rejectionReason   String?         @map("rejection_reason")
+  createdAt         DateTime        @default(now()) @map("created_at")
+  updatedAt         DateTime        @updatedAt @map("updated_at")
+
+  organization      Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  whatsappAccount   WhatsappAccount @relation(fields: [whatsappAccountId], references: [id], onDelete: Cascade)
+
+  @@map("message_templates")
+}
+
+model NotificationPreference {
+  id             String       @id @default(uuid()) @db.Uuid
+  userId         String       @map("user_id") @db.Uuid
+  organizationId String       @map("organization_id") @db.Uuid
+  notificationType String     @map("notification_type")
+  channel        String       @default("in_app_and_email")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, organizationId, notificationType])
+  @@map("notification_preferences")
+}
+
+model QualityRatingHistory {
+  id                String          @id @default(uuid()) @db.Uuid
+  whatsappAccountId String          @map("whatsapp_account_id") @db.Uuid
+  organizationId    String          @map("organization_id") @db.Uuid
+  rating            String
+  recordedAt        DateTime        @map("recorded_at")
+
+  whatsappAccount   WhatsappAccount @relation(fields: [whatsappAccountId], references: [id], onDelete: Cascade)
+  organization      Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("quality_rating_history")
+}
+
+model AuditLog {
+  id                     String        @id @default(uuid()) @db.Uuid
+  organizationId         String?       @map("organization_id") @db.Uuid
+  actorUserId            String?       @map("actor_user_id") @db.Uuid
+  actorType              String        @default("user") @map("actor_type") // user, system, super_admin
+  action                 String
+  resourceType           String?       @map("resource_type")
+  resourceId             String?       @map("resource_id")
+  metadata               Json?
+  ipAddress              String?       @map("ip_address")
+  impersonationSessionId String?       @map("impersonation_session_id")
+  createdAt              DateTime      @default(now()) @map("created_at")
+
+  organization           Organization? @relation(fields: [organizationId], references: [id])
+
+  @@map("audit_logs")
+}
