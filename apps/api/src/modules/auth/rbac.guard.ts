@@ -50,7 +50,17 @@ export class RbacGuard implements CanActivate {
       return true;
     }
 
-    const hasRole = requiredRoles.includes(membership.role as UserRole);
+    const roleHierarchy: Record<UserRole, UserRole[]> = {
+      owner: ['owner', 'admin', 'operator', 'readonly'],
+      admin: ['admin', 'operator', 'readonly'],
+      operator: ['operator', 'readonly'],
+      readonly: ['readonly'],
+    };
+
+    const userRole = membership.role as UserRole;
+    const allowedRoles = roleHierarchy[userRole] || [];
+    const hasRole = requiredRoles.some((role) => allowedRoles.includes(role));
+
     if (!hasRole) {
       throw new ForbiddenException('Insufficient permissions in this organization');
     }

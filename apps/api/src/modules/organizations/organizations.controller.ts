@@ -97,4 +97,29 @@ export class OrganizationsController {
   ) {
     return this.organizationsService.cancelInvitation(orgId, invitationId);
   }
+
+  @Roles('owner')
+  @UseGuards(AuthGuard, RbacGuard)
+  @Post('organizations/:orgId/transfer-ownership')
+  async transferOwnership(
+    @Param('orgId') orgId: string,
+    @Req() req: any,
+    @Body('newOwnerMemberId') newOwnerMemberId: string
+  ) {
+    return this.organizationsService.transferOwnership(orgId, req.user.id, newOwnerMemberId);
+  }
+
+  @Roles('owner')
+  @UseGuards(AuthGuard, RbacGuard)
+  @Delete('organizations/:orgId')
+  async scheduleDeletion(@Param('orgId') orgId: string, @Req() req: any) {
+    return this.organizationsService.scheduleDeletion(orgId, req.user.id);
+  }
+
+  @Roles('owner')
+  @UseGuards(AuthGuard, RbacGuard)
+  @Post('organizations/:orgId/cancel-deletion')
+  async cancelDeletion(@Param('orgId') orgId: string, @Req() req: any) {
+    return this.organizationsService.cancelDeletion(orgId, req.user.id);
+  }
 }

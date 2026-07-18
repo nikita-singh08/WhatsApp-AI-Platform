@@ -3,23 +3,21 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateOrganizationDto, UpdateOrganizationDto, InviteMemberDto, UpdateMemberDto } from './dto/organization.dto';
 import * as crypto from 'crypto';
 import { NotificationDispatcher } from '@whatsai/notifications';
+import { BillingService } from '../billing/billing.service';
 
 @Injectable()
 export class OrganizationsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly billingService: BillingService,
+  ) {}
 
   /**
    * Create Organization Workspace
    */
   async create(userId: string, userEmail: string, dto: CreateOrganizationDto) {
     // 1. Enforce max 3 organizations per user across the platform
-    const existingMemberships = await this.prisma.client.organizationMember.count({
-      where: { userId },
-    });
-
-    if (existingMemberships >= 3) {
-      throw new BadRequestException('You cannot belong to more than 3 organizations');
-    }
+    await this.billingService.checkUserOrgsLimit(userId);
 
     // 2. Enforce 1 free-tier organization per email domain (anti-abuse)
     const emailDomain = userEmail.split('@')[1];
@@ -247,6 +245,9 @@ export class OrganizationsService {
       throw new BadRequestException('A pending invitation has already been sent to this email');
     }
 
+    // Enforce seats limit
+    await this.billingService.checkOrgSeatsLimit(orgId);
+
     const token = crypto.randomBytes(32).toString('hex');
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
 
@@ -360,5 +361,124 @@ export class OrganizationsService {
         role: invite.role,
       },
     };
+  }
+
+  /**
+   * Transfer Organization Ownership to another member
+   */
+  async transferOwnership(orgId: string, actorUserId: string, newOwnerMemberId: string) {
+    const currentOwner = await this.prisma.client.organizationMember.findFirst({
+      where: { organizationId: orgId, role: 'owner', userId: actorUserId },
+    });
+
+    if (!currentOwner) {
+      throw new ForbiddenException('Only the current organization owner can transfer ownership.');
+    }
+
+    const targetMember = await this.prisma.client.organizationMember.findUnique({
+      where: { id: newOwnerMemberId },
+    });
+
+    if (!targetMember || targetMember.organizationId !== orgId) {
+      throw new NotFoundException('Target new owner member not found in this organization.');
+    }
+
+    await this.prisma.client.$transaction([
+      this.prisma.client.organizationMember.update({
+        where: { id: currentOwner.id },
+        data: { role: 'admin' },
+      }),
+      this.prisma.client.organizationMember.update({
+        where: { id: targetMember.id },
+        data: { role: 'owner' },
+      }),
+    ]);
+
+    // Audit log
+    await this.prisma.client.auditLog.create({
+      data: {
+        organizationId: orgId,
+        actorUserId,
+        action: 'organization.ownership.transfer',
+        resourceType: 'organization',
+        resourceId: orgId,
+        metadata: {
+          previousOwnerMemberId: currentOwner.id,
+          newOwnerMemberId,
+        },
+      },
+    });
+
+    return { message: 'Ownership transferred successfully' };
+  }
+
+  /**
+   * Schedule organization deletion (suspends and starts 30-day grace period)
+   */
+  async scheduleDeletion(orgId: string, actorUserId: string) {
+    const org = await this.prisma.client.organization.findUnique({
+      where: { id: orgId },
+    });
+    if (!org) {
+      throw new NotFoundException('Organization not found');
+    }
+
+    const gracePeriodDate = new Date();
+    gracePeriodDate.setDate(gracePeriodDate.getDate() + 30);
+
+    const updated = await this.prisma.client.organization.update({
+      where: { id: orgId },
+      data: {
+        status: 'suspended',
+        deletionScheduledAt: gracePeriodDate,
+      },
+    });
+
+    // Audit log
+    await this.prisma.client.auditLog.create({
+      data: {
+        organizationId: orgId,
+        actorUserId,
+        action: 'organization.deletion.scheduled',
+        resourceType: 'organization',
+        resourceId: orgId,
+        metadata: { deletionScheduledAt: gracePeriodDate },
+      },
+    });
+
+    return updated;
+  }
+
+  /**
+   * Cancel scheduled organization deletion and reactivate
+   */
+  async cancelDeletion(orgId: string, actorUserId: string) {
+    const org = await this.prisma.client.organization.findUnique({
+      where: { id: orgId },
+    });
+    if (!org) {
+      throw new NotFoundException('Organization not found');
+    }
+
+    const updated = await this.prisma.client.organization.update({
+      where: { id: orgId },
+      data: {
+        status: 'active',
+        deletionScheduledAt: null,
+      },
+    });
+
+    // Audit log
+    await this.prisma.client.auditLog.create({
+      data: {
+        organizationId: orgId,
+        actorUserId,
+        action: 'organization.deletion.cancelled',
+        resourceType: 'organization',
+        resourceId: orgId,
+      },
+    });
+
+    return updated;
   }
 }

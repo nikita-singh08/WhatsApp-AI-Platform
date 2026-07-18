@@ -4,18 +4,25 @@ import { ConnectWhatsappDto } from './dto/connect-whatsapp.dto';
 import { encrypt, decrypt, verifyMetaSignature, WhatsappClient } from '@whatsai/integrations';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
+import { WebsocketsGateway } from '../websockets/websockets.gateway';
+import { BillingService } from '../billing/billing.service';
 
 @Injectable()
 export class WhatsappService {
   constructor(
     private readonly prisma: PrismaService,
-    @InjectQueue('incoming-message') private readonly incomingQueue: Queue
+    private readonly websockets: WebsocketsGateway,
+    @InjectQueue('incoming-message') private readonly incomingQueue: Queue,
+    private readonly billingService: BillingService,
   ) {}
 
   /**
    * Connect a WhatsApp Business account (Manual Config setup)
    */
   async connectAccount(orgId: string, dto: ConnectWhatsappDto) {
+    // Enforce active numbers limit
+    await this.billingService.checkOrgNumbersLimit(orgId);
+
     // 1. Enforce unique Phone Number ID across the platform
     const existing = await this.prisma.client.whatsappAccount.findUnique({
       where: { phoneNumberId: dto.phoneNumberId },
@@ -315,6 +322,9 @@ export class WhatsappService {
           windowExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours from now
         },
       });
+
+      // Broadcast customer incoming message in real-time
+      this.websockets.broadcastToOrg(account.organizationId, 'message.created', dbMessage);
 
       // Enqueue job to background queue for AI processing
       await this.incomingQueue.add(

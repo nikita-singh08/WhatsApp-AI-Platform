@@ -1,34 +1,27 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateAgentDto, UpdateAgentDto } from './dto/agent.dto';
+import { MemoryService } from '../memory/memory.service';
+import { KnowledgeBaseService } from '../knowledge/knowledge.service';
+import { GeminiProvider, LLMMessage } from '@whatsai/ai';
+import { BillingService } from '../billing/billing.service';
 
 @Injectable()
 export class AgentsService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly ai = new GeminiProvider();
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly memoryService: MemoryService,
+    private readonly kbService: KnowledgeBaseService,
+    private readonly billingService: BillingService,
+  ) {}
 
   /**
    * Helper to check plan limits before activating an agent
    */
   private async enforceActiveAgentLimit(orgId: string) {
-    const sub = await this.prisma.client.subscription.findUnique({
-      where: { organizationId: orgId },
-    });
-
-    const plan = sub?.plan || 'free';
-    const limit = plan === 'free' || plan === 'starter' ? 1 : 10; // Growth/Agency have more
-
-    const activeCount = await this.prisma.client.agent.count({
-      where: {
-        organizationId: orgId,
-        status: 'active',
-      },
-    });
-
-    if (activeCount >= limit) {
-      throw new BadRequestException(
-        `Active agent limit reached for your plan (${plan}). Currently active: ${activeCount}/${limit}. Deactivate or archive another agent first.`
-      );
-    }
+    await this.billingService.checkOrgAgentsLimit(orgId);
   }
 
   /**
@@ -255,5 +248,79 @@ export class AgentsService {
     ]);
 
     return { message: 'Agent archived successfully' };
+  }
+
+  /**
+   * Synchronously simulate agent reasoning path
+   */
+  async simulate(orgId: string, agentId: string, query: string, contactId?: string) {
+    const agent = await this.prisma.client.agent.findFirst({
+      where: { id: agentId, organizationId: orgId },
+    });
+
+    if (!agent) {
+      throw new NotFoundException('Agent not found');
+    }
+
+    // 1. Fetch matching Knowledge Base context (RAG)
+    const matchedChunks = await this.kbService.querySimilarity(orgId, query, 3);
+    const kbContext = matchedChunks.map((c: any) => c.content).join('\n---\n');
+
+    // 2. Fetch Long-Term Memory facts (LTM)
+    let ltmFacts: string[] = [];
+    if (contactId) {
+      ltmFacts = await this.memoryService.queryLongTermMemory(orgId, contactId, query, 2);
+    }
+    const ltmContext = ltmFacts.length > 0
+      ? `Relevant historical customer facts:\n${ltmFacts.map((f: any) => `- ${f}`).join('\n')}`
+      : '';
+
+    // 3. Setup single user prompt query context
+    const history: LLMMessage[] = [{ role: 'user', content: query }];
+
+    // 4. Synthesize system prompt
+    const systemInstruction = `${agent.systemPrompt}
+    
+Tones Guidelines: Ensure your response has a ${agent.tone || 'professional'} tone.
+Language Guidelines: Write responses in the primary language: ${agent.language || 'en'}.
+
+${ltmContext}
+
+Use the following context from our official business knowledge base to formulate your response. If the context does not contain the answer, use your fallback response: "${agent.fallbackMessage || "I don't have that information. Let me connect you with a team member."}".
+=== Context ===
+${kbContext}
+===============`;
+
+    // 5. Generate chat response
+    const response = await this.ai.generateChatCompletion({
+      systemInstruction,
+      messages: history,
+    });
+
+    // 6. Apply safety scrub simulation
+    let sanitizedText = response.text
+      .replace(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, '[EMAIL MASKED]')
+      .replace(/\+?[0-9]{3}-?[0-9]{6,10}/g, '[PHONE MASKED]');
+    const badWords = [/fuck/gi, /shit/gi, /bitch/gi, /asshole/gi];
+    for (const pattern of badWords) {
+      sanitizedText = sanitizedText.replace(pattern, '****');
+    }
+
+    return {
+      query,
+      generatedResponse: sanitizedText,
+      originalResponse: response.text,
+      systemInstructionUsed: systemInstruction,
+      matchedChunks: matchedChunks.map((c: any) => ({
+        content: c.content,
+        similarity: c.similarity,
+      })),
+      memoryFacts: ltmFacts,
+      telemetry: {
+        promptTokens: response.promptTokens,
+        completionTokens: response.completionTokens,
+        totalTokens: response.totalTokens,
+      },
+    };
   }
 }

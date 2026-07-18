@@ -74,4 +74,16 @@ export class AgentsController {
   async archiveAgent(@Param('orgId') orgId: string, @Param('agentId') agentId: string) {
     return this.agentsService.archiveAgent(orgId, agentId);
   }
+
+  @UseGuards(AuthGuard, RbacGuard)
+  @Post('organizations/:orgId/agents/:agentId/simulate')
+  @HttpCode(HttpStatus.OK)
+  async simulate(
+    @Param('orgId') orgId: string,
+    @Param('agentId') agentId: string,
+    @Body('query') query: string,
+    @Body('contactId') contactId?: string
+  ) {
+    return this.agentsService.simulate(orgId, agentId, query, contactId);
+  }
 }

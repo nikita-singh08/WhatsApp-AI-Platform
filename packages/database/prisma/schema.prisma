@@ -91,6 +91,7 @@ model Organization {
   notificationPreferences NotificationPreference[]
   auditLogs               AuditLog[]
   qualityRatingHistory    QualityRatingHistory[]
+  featureFlags            FeatureFlag[]
 
   @@map("organizations")
 }
@@ -627,4 +628,18 @@ model AuditLog {
   organization           Organization? @relation(fields: [organizationId], references: [id])
 
   @@map("audit_logs")
+}
+
+model FeatureFlag {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String?      @map("organization_id") @db.Uuid
+  key            String
+  value          Boolean      @default(false)
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([key, organizationId])
+  @@map("feature_flags")
 }
