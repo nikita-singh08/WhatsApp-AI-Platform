@@ -25,7 +25,8 @@ export type MessageType =
   | 'contact'
   | 'sticker'
   | 'reaction'
-  | 'template';
+  | 'template'
+  | 'interactive';
 
 export const MESSAGE_TYPES: MessageType[] = [
   'text',
@@ -38,6 +39,7 @@ export const MESSAGE_TYPES: MessageType[] = [
   'sticker',
   'reaction',
   'template',
+  'interactive',
 ];
 
 // Sender types

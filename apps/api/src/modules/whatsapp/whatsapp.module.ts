@@ -8,6 +8,10 @@ import { KnowledgeBaseModule } from '../knowledge/knowledge.module';
 import { IncomingMessageConsumer } from './incoming-message.consumer';
 import { BillingModule } from '../billing/billing.module';
 import { ConversationsModule } from '../conversations/conversations.module';
+import { TemplatesService } from './templates.service';
+import { TemplatesController } from './templates.controller';
+import { QualityService } from './quality.service';
+import { AgentsModule } from '../agents/agents.module';
 
 @Module({
   imports: [
@@ -16,12 +20,13 @@ import { ConversationsModule } from '../conversations/conversations.module';
     KnowledgeBaseModule,
     BillingModule,
     ConversationsModule,
+    AgentsModule,
     BullModule.registerQueue({
       name: 'incoming-message',
     }),
   ],
-  controllers: [WhatsappController],
-  providers: [WhatsappService, IncomingMessageConsumer],
-  exports: [WhatsappService],
+  controllers: [WhatsappController, TemplatesController],
+  providers: [WhatsappService, IncomingMessageConsumer, TemplatesService, QualityService],
+  exports: [WhatsappService, TemplatesService, QualityService],
 })
 export class WhatsappModule {}

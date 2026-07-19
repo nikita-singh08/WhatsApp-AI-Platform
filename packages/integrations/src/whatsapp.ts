@@ -12,6 +12,7 @@ export interface SendMessageParams {
   templateName?: string;
   templateLanguage?: string;
   templateComponents?: any[];
+  interactive?: any;
 }
 
 export interface SendMessageResult {
@@ -44,6 +45,7 @@ export class WhatsappClient {
       templateName,
       templateLanguage,
       templateComponents,
+      interactive,
     } = params;
 
     const url = `https://graph.facebook.com/${META_GRAPH_VERSION}/${phoneNumberId}/messages`;
@@ -69,8 +71,14 @@ export class WhatsappClient {
           components: templateComponents || [],
         },
       };
+    } else if (messageType === 'interactive' && interactive) {
+      data = {
+        ...data,
+        type: 'interactive',
+        interactive,
+      };
     } else {
-      throw new Error(`Unsupported or incomplete message type in MVP: ${messageType}`);
+      throw new Error(`Unsupported or incomplete message type: ${messageType}`);
     }
 
     try {

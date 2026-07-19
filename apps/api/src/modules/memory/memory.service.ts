@@ -75,6 +75,48 @@ export class MemoryService {
   }
 
   /**
+   * Check if a new fact conflicts with any existing memories
+   */
+  async findConflictingMemory(orgId: string, contactId: string, newFact: string): Promise<string | null> {
+    const existing = await this.prisma.client.memory.findMany({
+      where: { contactId, organizationId: orgId },
+    });
+
+    if (existing.length === 0) return null;
+
+    const listStr = existing.map((m) => `ID: ${m.id} - Content: "${m.content}"`).join('\n');
+
+    const prompt = `New Fact: "${newFact}"
+Existing Facts:
+${listStr}
+
+Does the New Fact contradict, correct, or update any of the Existing Facts?
+If yes, return ONLY JSON containing:
+{
+  "conflicts": true,
+  "conflictingMemoryId": "the-id-from-above-list"
+}
+If no conflict or update is found, return ONLY JSON containing:
+{
+  "conflicts": false
+}`;
+
+    try {
+      const response = await this.ai.generateChatCompletion({
+        messages: [{ role: 'user', content: prompt }],
+      });
+      const jsonStr = response.text.replace(/```json/g, '').replace(/```/g, '').trim();
+      const parsed = JSON.parse(jsonStr);
+      if (parsed.conflicts && parsed.conflictingMemoryId) {
+        return parsed.conflictingMemoryId;
+      }
+    } catch (e) {
+      // Fallback: no conflict action
+    }
+    return null;
+  }
+
+  /**
    * Auto-extract user details / preferences via Gemini and save in long-term memory
    */
   async extractAndSaveFacts(orgId: string, contactId: string, convId: string, messageText: string) {
@@ -95,6 +137,15 @@ Return them as a comma-separated list of short claims. If no new attributes or f
       const facts = text.split(',').map((f) => f.trim()).filter((f) => f.length > 0);
 
       for (const fact of facts) {
+        // Resolve conflicts: older matching memory gets updated/deleted
+        const conflictId = await this.findConflictingMemory(orgId, contactId, fact);
+        if (conflictId) {
+          console.log(`[MemoryService] Deleting conflicting memory fact: ${conflictId}`);
+          await this.prisma.client.memory.delete({
+            where: { id: conflictId },
+          });
+        }
+
         const embResult = await this.ai.generateEmbedding({ text: fact });
         const vectorString = `[${embResult.values.join(',')}]`;
         const memoryId = crypto.randomUUID();

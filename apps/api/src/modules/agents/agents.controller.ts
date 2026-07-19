@@ -15,10 +15,14 @@ import { CreateAgentDto, UpdateAgentDto } from './dto/agent.dto';
 import { AuthGuard } from '../auth/auth.guard';
 import { RbacGuard } from '../auth/rbac.guard';
 import { Roles } from '../auth/roles.decorator';
+import { ToolExecutionService } from './tool-execution.service';
 
 @Controller('api')
 export class AgentsController {
-  constructor(private readonly agentsService: AgentsService) {}
+  constructor(
+    private readonly agentsService: AgentsService,
+    private readonly toolExecutionService: ToolExecutionService,
+  ) {}
 
   @Roles('owner', 'admin')
   @UseGuards(AuthGuard, RbacGuard)
@@ -85,5 +89,36 @@ export class AgentsController {
     @Body('contactId') contactId?: string
   ) {
     return this.agentsService.simulate(orgId, agentId, query, contactId);
+  }
+
+  @UseGuards(AuthGuard, RbacGuard)
+  @Roles('admin', 'operator')
+  @Get('organizations/:orgId/tool-executions/pending')
+  async getPendingApprovals(@Param('orgId') orgId: string) {
+    return this.toolExecutionService.findPending(orgId);
+  }
+
+  @UseGuards(AuthGuard, RbacGuard)
+  @Roles('admin', 'operator')
+  @Post('organizations/:orgId/tool-executions/:id/approve')
+  @HttpCode(HttpStatus.OK)
+  async approveTool(
+    @Param('orgId') orgId: string,
+    @Param('id') id: string,
+    @Req() req: any,
+  ) {
+    return this.toolExecutionService.approveRequest(orgId, id, req.user.id);
+  }
+
+  @UseGuards(AuthGuard, RbacGuard)
+  @Roles('admin', 'operator')
+  @Post('organizations/:orgId/tool-executions/:id/reject')
+  @HttpCode(HttpStatus.OK)
+  async rejectTool(
+    @Param('orgId') orgId: string,
+    @Param('id') id: string,
+    @Req() req: any,
+  ) {
+    return this.toolExecutionService.rejectRequest(orgId, id, req.user.id);
   }
 }

@@ -252,4 +252,36 @@ export class ConversationsService {
       return null;
     }
   }
+
+  /**
+   * Manually reassign a conversation to another active agent
+   */
+  async reassignAgent(orgId: string, convId: string, agentId: string) {
+    const conversation = await this.prisma.client.conversation.findFirst({
+      where: { id: convId, organizationId: orgId },
+    });
+
+    if (!conversation) {
+      throw new NotFoundException('Conversation not found');
+    }
+
+    const agent = await this.prisma.client.agent.findFirst({
+      where: { id: agentId, organizationId: orgId, status: 'active' },
+    });
+
+    if (!agent) {
+      throw new NotFoundException('Active agent not found');
+    }
+
+    const updated = await this.prisma.client.conversation.update({
+      where: { id: convId },
+      data: { currentAgentId: agentId },
+      include: {
+        currentAgent: true,
+      },
+    });
+
+    this.websockets.broadcastToOrg(orgId, 'conversation.updated', updated);
+    return updated;
+  }
 }

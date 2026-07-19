@@ -11,6 +11,10 @@ import { decrypt } from '@whatsai/integrations';
 import { BillingService } from '../billing/billing.service';
 import { ConversationsService } from '../conversations/conversations.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { RouterService } from '../agents/router.service';
+import { ToolExecutionService } from '../agents/tool-execution.service';
+import { IntegrationsService } from '../integrations/integrations.service';
+import { QualityService } from './quality.service';
 
 @Processor('incoming-message')
 @Injectable()
@@ -25,6 +29,10 @@ export class IncomingMessageConsumer extends WorkerHost {
     private billingService: BillingService,
     private conversationsService: ConversationsService,
     private notificationsService: NotificationsService,
+    private routerService: RouterService,
+    private toolExecutionService: ToolExecutionService,
+    private integrationsService: IntegrationsService,
+    private qualityService: QualityService,
   ) {
     super();
   }
@@ -152,13 +160,29 @@ export class IncomingMessageConsumer extends WorkerHost {
       return;
     }
 
-    // 5. Fetch Active AI Agent Prompt
+    // 5. Determine Active Agent using multi-agent routing
+    let agentId = conversation.currentAgentId;
+    if (!agentId) {
+      const routing = await this.routerService.routeMessage(
+        organizationId,
+        conversation.whatsappAccountId,
+        message.textBody || ''
+      );
+      agentId = routing.agentId;
+      
+      // Update conversation with selected agent
+      await this.prisma.client.conversation.update({
+        where: { id: conversationId },
+        data: { currentAgentId: agentId },
+      });
+    }
+
     const agent = await this.prisma.client.agent.findFirst({
-      where: { organizationId, status: 'active' },
+      where: { id: agentId, organizationId, status: 'active' },
     });
 
     if (!agent) {
-      console.log(`[IncomingMessageConsumer] No active AI Agent found for organization ${organizationId}`);
+      console.log(`[IncomingMessageConsumer] No active AI Agent found for organization ${organizationId} matching ${agentId}`);
       return;
     }
 
@@ -196,10 +220,21 @@ Use the following context from our official business knowledge base to formulate
 ${kbContext}
 ===============`;
 
-      // 10. Invoke Gemini API
+      // 10. Invoke Gemini API with support for interactive tool calls
       console.log(`[IncomingMessageConsumer] Generating reply for query: "${message.textBody}"`);
+      
+      const toolRules = `
+=== Allowed Tools ===
+You can call the following tools if needed by outputting ONLY the matching JSON payload format:
+- "check_calendar_availability": {"toolCall": {"name": "check_calendar_availability", "args": {"startDate": "YYYY-MM-DDTHH:mm:ssZ", "endDate": "YYYY-MM-DDTHH:mm:ssZ"}}}
+- "create_calendar_event": {"toolCall": {"name": "create_calendar_event", "args": {"title": "Event Title", "start": "YYYY-MM-DDTHH:mm:ssZ", "end": "YYYY-MM-DDTHH:mm:ssZ"}}}
+- "append_google_sheet_row": {"toolCall": {"name": "append_google_sheet_row", "args": {"spreadsheetId": "id-here", "rowData": ["val1", "val2"]}}}
+
+If you need to call a tool, return ONLY the matching JSON block without any extra text or conversational context.
+Otherwise, respond conversational style as normal.`;
+
       const response = await this.ai.generateChatCompletion({
-        systemInstruction,
+        systemInstruction: `${systemInstruction}\n${toolRules}`,
         messages: history,
       });
 
@@ -207,11 +242,80 @@ ${kbContext}
       const costCents = Math.max(1, Math.round((response.promptTokens * 0.0000075 + response.completionTokens * 0.00003) * 100));
       await this.billingService.trackAndCheckCostCap(organizationId, costCents, response.totalTokens);
 
+      // Check if response contains a tool call request
+      if (response.text.includes('"toolCall"')) {
+        try {
+          const jsonStr = response.text.replace(/```json/g, '').replace(/```/g, '').trim();
+          const parsed = JSON.parse(jsonStr);
+          if (parsed.toolCall) {
+            const { name, args } = parsed.toolCall;
+            const requiresApproval = name === 'create_calendar_event';
+
+            // Create agent run record for metadata link
+            const agentRun = await this.prisma.client.agentRun.create({
+              data: {
+                organizationId,
+                agentId: agent.id,
+                conversationId,
+                status: requiresApproval ? 'pending_approval' : 'executing',
+                toolsCalled: parsed.toolCall,
+              },
+            });
+
+            // Create ToolExecution request
+            const toolExec = await this.toolExecutionService.createRequest(
+              organizationId,
+              agentRun.id,
+              name,
+              args,
+              requiresApproval
+            );
+
+            if (requiresApproval) {
+              const approvalNotice = "I need approval from an administrator to book this appointment slot. I will get back to you once approved.";
+              await this.sendOutboundReply(organizationId, conversationId, conversation.contact.phoneNumber || '', approvalNotice);
+              return;
+            } else {
+              // Execute tool synchronously in background
+              let toolOutput: any;
+              try {
+                if (name === 'check_calendar_availability') {
+                  toolOutput = await this.integrationsService.checkCalendarAvailability(organizationId, args.startDate, args.endDate);
+                } else if (name === 'append_google_sheet_row') {
+                  toolOutput = await this.integrationsService.appendGoogleSheetRow(organizationId, args.spreadsheetId, args.rowData);
+                }
+                await this.toolExecutionService.completeExecution(toolExec.id, toolOutput);
+              } catch (execErr: any) {
+                toolOutput = { error: execErr.message };
+                await this.toolExecutionService.failExecution(toolExec.id, execErr.message);
+              }
+
+              // Inject tool output to history and call LLM completion again!
+              const toolMessage: LLMMessage = {
+                role: 'user',
+                content: `Tool Execution Result (${name}): ${JSON.stringify(toolOutput)}`,
+              };
+              
+              const finalResponse = await this.ai.generateChatCompletion({
+                systemInstruction,
+                messages: [...history, toolMessage],
+              });
+
+              const sanitizedReply = this.applySafetyFilters(finalResponse.text);
+              await this.sendOutboundReply(organizationId, conversationId, conversation.contact.phoneNumber || '', sanitizedReply, finalResponse, agent.id);
+              return;
+            }
+          }
+        } catch (e: any) {
+          console.warn('[Tool Call Parsing Error]', e.message);
+        }
+      }
+
       // 11. Safety checks (Scrub PII and Mask Profanity)
       const sanitizedReply = this.applySafetyFilters(response.text);
 
       // 12. Send reply via WhatsApp Meta API and save message
-      await this.sendOutboundReply(organizationId, conversationId, conversation.contact.phoneNumber || '', sanitizedReply, response);
+      await this.sendOutboundReply(organizationId, conversationId, conversation.contact.phoneNumber || '', sanitizedReply, response, agent.id);
 
       // 13. Auto-Extract details for Long-Term Memory (in background)
       this.memoryService.extractAndSaveFacts(organizationId, conversation.contactId, conversationId, message.textBody || '')
@@ -234,27 +338,38 @@ ${kbContext}
     phoneNumber: string,
     text: string,
     aiResult?: any,
+    agentId?: string,
   ) {
     const whatsappAccount = await this.prisma.client.whatsappAccount.findFirst({
       where: { organizationId: orgId, isActive: true },
     });
 
-    let whatsappMessageId = 'ai_mock_id_' + Date.now();
+    if (!whatsappAccount) {
+      console.error('[IncomingMessageConsumer sendOutboundReply] No active WhatsApp account found');
+      return;
+    }
 
-    if (whatsappAccount) {
-      try {
-        const decryptedToken = decrypt(whatsappAccount.accessTokenEncrypted);
-        const res = await WhatsappClient.sendMessage({
-          phoneNumberId: whatsappAccount.phoneNumberId,
-          accessToken: decryptedToken,
-          recipientWaId: phoneNumber,
-          messageType: 'text',
-          textBody: text,
-        });
-        whatsappMessageId = res.whatsappMessageId;
-      } catch (err) {
-        console.error('[IncomingMessageConsumer Outbound Send API Failure]', err);
-      }
+    // Enforce daily messaging rate limits
+    try {
+      await this.qualityService.trackAndEnforceOutboundRateLimits(orgId, whatsappAccount.id);
+    } catch (rateErr: any) {
+      console.warn(`[sendOutboundReply] Messaging rate limits blocked outbound reply: ${rateErr.message}`);
+      return;
+    }
+
+    let whatsappMessageId = 'ai_mock_id_' + Date.now();
+    try {
+      const decryptedToken = decrypt(whatsappAccount.accessTokenEncrypted);
+      const res = await WhatsappClient.sendMessage({
+        phoneNumberId: whatsappAccount.phoneNumberId,
+        accessToken: decryptedToken,
+        recipientWaId: phoneNumber,
+        messageType: 'text',
+        textBody: text,
+      });
+      whatsappMessageId = res.whatsappMessageId;
+    } catch (err) {
+      console.error('[IncomingMessageConsumer Outbound Send API Failure]', err);
     }
 
     // Save outbound message to DB
@@ -272,11 +387,11 @@ ${kbContext}
     });
 
     // Save cost tracking if AI logs token details
-    if (aiResult && aiResult.promptTokens) {
+    if (aiResult && aiResult.promptTokens && agentId) {
       await this.prisma.client.agentRun.create({
         data: {
           organizationId: orgId,
-          agentId: (await this.prisma.client.agent.findFirst({ where: { organizationId: orgId, status: 'active' } }))?.id || '',
+          agentId,
           conversationId: convId,
           status: 'success',
           promptTokens: aiResult.promptTokens,

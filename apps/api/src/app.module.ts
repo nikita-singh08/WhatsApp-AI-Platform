@@ -15,11 +15,13 @@ import { AuditLogsModule } from './modules/audit-logs/audit-logs.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { SuperAdminModule } from './modules/super-admin/super-admin.module';
 import { GDPRModule } from './modules/gdpr/gdpr.module';
+import { IntegrationsModule } from './modules/integrations/integrations.module';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 
 @Module({
   imports: [
+    IntegrationsModule,
     // Configure global config loader
     ConfigModule.forRoot({
       isGlobal: true,

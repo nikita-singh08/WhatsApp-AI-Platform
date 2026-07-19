@@ -73,4 +73,14 @@ export class ConversationsController {
   ) {
     return this.conversationsService.toggleTakeover(orgId, convId, false);
   }
+
+  @Post(':convId/reassign-agent')
+  @Roles('admin', 'operator')
+  async reassignAgent(
+    @Param('orgId') orgId: string,
+    @Param('convId') convId: string,
+    @Body('agentId') agentId: string,
+  ) {
+    return this.conversationsService.reassignAgent(orgId, convId, agentId);
+  }
 }
