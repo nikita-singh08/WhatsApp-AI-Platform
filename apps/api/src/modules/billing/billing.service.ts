@@ -1,4 +1,9 @@
-import { Injectable, BadRequestException, ForbiddenException, OnModuleInit } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  ForbiddenException,
+  OnModuleInit,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { PLAN_CONFIGS, PlanConfig, UserRole } from '@whatsai/shared';
 import Stripe from 'stripe';
@@ -23,7 +28,9 @@ export class BillingService implements OnModuleInit {
       this.isSimulatedMode = false;
       console.log('[BillingService] Running in Stripe Live/Test API Mode');
     } else {
-      console.log('[BillingService] Running in SIMULATED Mode (no active Stripe credentials)');
+      console.log(
+        '[BillingService] Running in SIMULATED Mode (no active Stripe credentials)',
+      );
     }
   }
 
@@ -86,7 +93,7 @@ export class BillingService implements OnModuleInit {
 
     if (count >= config.maxNumbers) {
       throw new ForbiddenException(
-        `Workspace limit reached. Your plan allows max ${config.maxNumbers} active WhatsApp number(s).`
+        `Workspace limit reached. Your plan allows max ${config.maxNumbers} active WhatsApp number(s).`,
       );
     }
   }
@@ -102,7 +109,7 @@ export class BillingService implements OnModuleInit {
 
     if (count >= config.maxAgents) {
       throw new ForbiddenException(
-        `Workspace limit reached. Your plan allows max ${config.maxAgents} active AI Agent(s).`
+        `Workspace limit reached. Your plan allows max ${config.maxAgents} active AI Agent(s).`,
       );
     }
   }
@@ -125,7 +132,7 @@ export class BillingService implements OnModuleInit {
 
     if (totalAllocated >= config.maxSeats) {
       throw new ForbiddenException(
-        `Workspace limit reached. Your plan allows max ${config.maxSeats} seat(s). Please remove a member or cancel a pending invite first.`
+        `Workspace limit reached. Your plan allows max ${config.maxSeats} seat(s). Please remove a member or cancel a pending invite first.`,
       );
     }
   }
@@ -149,12 +156,16 @@ export class BillingService implements OnModuleInit {
     if (projectTotal > config.maxKbStorageBytes) {
       const allowedMb = Math.round(config.maxKbStorageBytes / (1024 * 1024));
       throw new ForbiddenException(
-        `Knowledge storage limit exceeded. Your plan allows max ${allowedMb} MB of files.`
+        `Knowledge storage limit exceeded. Your plan allows max ${allowedMb} MB of files.`,
       );
     }
   }
 
-  async trackAndCheckCostCap(orgId: string, estimatedCostCents: number, tokensCount = 0) {
+  async trackAndCheckCostCap(
+    orgId: string,
+    estimatedCostCents: number,
+    tokensCount = 0,
+  ) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -183,7 +194,9 @@ export class BillingService implements OnModuleInit {
     }
 
     if (tracking.capReached) {
-      throw new ForbiddenException('Daily AI token cost cap reached. Outbound replies paused.');
+      throw new ForbiddenException(
+        'Daily AI token cost cap reached. Outbound replies paused.',
+      );
     }
 
     const projectedCost = tracking.estimatedCostCents + estimatedCostCents;
@@ -201,13 +214,19 @@ export class BillingService implements OnModuleInit {
       });
 
       // Dispatch daily cost cap warning alert
-      await this.notificationsService.dispatchNotification(orgId, {
-        type: 'cost_cap',
-        title: 'Daily AI Cost Cap Exceeded',
-        body: `Your organization has reached the daily limit of $${(tracking.costCapCents / 100).toFixed(2)}. AI automation replies have been paused.`,
-      }).catch((e) => console.error('Failed to dispatch cost cap notification', e));
+      await this.notificationsService
+        .dispatchNotification(orgId, {
+          type: 'cost_cap',
+          title: 'Daily AI Cost Cap Exceeded',
+          body: `Your organization has reached the daily limit of $${(tracking.costCapCents / 100).toFixed(2)}. AI automation replies have been paused.`,
+        })
+        .catch((e) =>
+          console.error('Failed to dispatch cost cap notification', e),
+        );
 
-      throw new ForbiddenException('Daily AI cost cap exceeded. AI replies have been paused.');
+      throw new ForbiddenException(
+        'Daily AI cost cap exceeded. AI replies have been paused.',
+      );
     }
 
     // Increment usage
@@ -223,10 +242,16 @@ export class BillingService implements OnModuleInit {
   /**
    * Generate Checkout URL
    */
-  async createCheckoutSession(orgId: string, plan: string, interval: 'monthly' | 'yearly') {
+  async createCheckoutSession(
+    orgId: string,
+    plan: string,
+    interval: 'monthly' | 'yearly',
+  ) {
     const targetPlan = plan.toLowerCase();
     if (!['starter', 'growth', 'agency', 'enterprise'].includes(targetPlan)) {
-      throw new BadRequestException('Invalid subscription plan name selection.');
+      throw new BadRequestException(
+        'Invalid subscription plan name selection.',
+      );
     }
 
     if (this.isSimulatedMode) {
@@ -250,7 +275,9 @@ export class BillingService implements OnModuleInit {
         },
       });
 
-      return { url: `/settings?tab=billing&checkout=success&plan=${targetPlan}` };
+      return {
+        url: `/settings?tab=billing&checkout=success&plan=${targetPlan}`,
+      };
     }
 
     // Live Stripe Mode
@@ -265,7 +292,12 @@ export class BillingService implements OnModuleInit {
               description: `Subscription package tier: ${targetPlan}`,
             },
             // Map simple pricing tiers (cents): Starter=2900, Growth=7900, Agency=19900
-            unit_amount: targetPlan === 'starter' ? 2900 : targetPlan === 'growth' ? 7900 : 19900,
+            unit_amount:
+              targetPlan === 'starter'
+                ? 2900
+                : targetPlan === 'growth'
+                  ? 7900
+                  : 19900,
             recurring: {
               interval: 'month',
             },
@@ -295,7 +327,9 @@ export class BillingService implements OnModuleInit {
     });
 
     if (!sub || !sub.stripeCustomerId) {
-      throw new BadRequestException('Stripe billing profile does not exist for this organization.');
+      throw new BadRequestException(
+        'Stripe billing profile does not exist for this organization.',
+      );
     }
 
     const portal = await this.stripe!.billingPortal.sessions.create({
@@ -317,21 +351,25 @@ export class BillingService implements OnModuleInit {
       event = this.stripe!.webhooks.constructEvent(
         payload,
         signature,
-        process.env.STRIPE_WEBHOOK_SECRET || ''
+        process.env.STRIPE_WEBHOOK_SECRET || '',
       );
     } catch (err: any) {
-      throw new BadRequestException(`Stripe Webhook Signature verification failed: ${err.message}`);
+      throw new BadRequestException(
+        `Stripe Webhook Signature verification failed: ${err.message}`,
+      );
     }
 
     switch (event.type) {
       case 'checkout.session.completed': {
-        const session = event.data.object as Stripe.Checkout.Session;
+        const session = event.data.object;
         const orgId = session.client_reference_id;
         const stripeSubId = session.subscription as string;
         const stripeCustomerId = session.customer as string;
 
         if (orgId) {
-          const stripeSub = (await this.stripe!.subscriptions.retrieve(stripeSubId)) as any;
+          const stripeSub = (await this.stripe!.subscriptions.retrieve(
+            stripeSubId,
+          )) as any;
           await this.prisma.client.subscription.upsert({
             where: { organizationId: orgId },
             create: {
@@ -340,14 +378,18 @@ export class BillingService implements OnModuleInit {
               stripeSubscriptionId: stripeSubId,
               plan: 'starter', // Map according to stripe price metadata
               status: stripeSub.status,
-              currentPeriodStart: new Date(stripeSub.current_period_start * 1000),
+              currentPeriodStart: new Date(
+                stripeSub.current_period_start * 1000,
+              ),
               currentPeriodEnd: new Date(stripeSub.current_period_end * 1000),
             },
             update: {
               stripeCustomerId,
               stripeSubscriptionId: stripeSubId,
               status: stripeSub.status,
-              currentPeriodStart: new Date(stripeSub.current_period_start * 1000),
+              currentPeriodStart: new Date(
+                stripeSub.current_period_start * 1000,
+              ),
               currentPeriodEnd: new Date(stripeSub.current_period_end * 1000),
             },
           });
@@ -365,7 +407,9 @@ export class BillingService implements OnModuleInit {
             where: { id: existing.id },
             data: {
               status: stripeSub.status,
-              currentPeriodStart: new Date(stripeSub.current_period_start * 1000),
+              currentPeriodStart: new Date(
+                stripeSub.current_period_start * 1000,
+              ),
               currentPeriodEnd: new Date(stripeSub.current_period_end * 1000),
             },
           });
@@ -411,10 +455,11 @@ export class BillingService implements OnModuleInit {
       where: { organizationId: orgId, status: 'active' },
     });
 
-    const storageAggregate = await this.prisma.client.knowledgeDocument.aggregate({
-      where: { organizationId: orgId },
-      _sum: { fileSizeBytes: true },
-    });
+    const storageAggregate =
+      await this.prisma.client.knowledgeDocument.aggregate({
+        where: { organizationId: orgId },
+        _sum: { fileSizeBytes: true },
+      });
     const storageUsedBytes = storageAggregate._sum.fileSizeBytes || 0;
 
     // Monthly messages count
@@ -492,7 +537,7 @@ export class BillingService implements OnModuleInit {
         data: {
           costCapCents: customCapCents,
           capReached,
-          capReachedAt: capReached ? (tracking.capReachedAt || new Date()) : null,
+          capReachedAt: capReached ? tracking.capReachedAt || new Date() : null,
         },
       });
     } else {

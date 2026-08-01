@@ -26,7 +26,12 @@ import { AgentsModule } from '../agents/agents.module';
     }),
   ],
   controllers: [WhatsappController, TemplatesController],
-  providers: [WhatsappService, IncomingMessageConsumer, TemplatesService, QualityService],
+  providers: [
+    WhatsappService,
+    IncomingMessageConsumer,
+    TemplatesService,
+    QualityService,
+  ],
   exports: [WhatsappService, TemplatesService, QualityService],
 })
 export class WhatsappModule {}

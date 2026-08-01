@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { WhatsappClient } from '@whatsai/integrations';
 import { decrypt } from '@whatsai/integrations';
@@ -83,12 +87,14 @@ export class TemplatesService {
     orgId: string,
     id: string,
     recipientWaId: string,
-    variables: any[]
+    variables: any[],
   ) {
     const template = await this.findOne(orgId, id);
 
     if (template.status !== 'approved') {
-      throw new BadRequestException('Cannot send a template that is not in approved status');
+      throw new BadRequestException(
+        'Cannot send a template that is not in approved status',
+      );
     }
 
     const waAccount = await this.prisma.client.whatsappAccount.findFirst({
@@ -96,7 +102,9 @@ export class TemplatesService {
     });
 
     if (!waAccount) {
-      throw new BadRequestException('No active WhatsApp business account connected for this workspace');
+      throw new BadRequestException(
+        'No active WhatsApp business account connected for this workspace',
+      );
     }
 
     // Resolve or find conversation
@@ -158,7 +166,9 @@ export class TemplatesService {
         messageType: 'template',
         whatsappMessageId,
         templateName: template.name,
-        templateVariables: variables ? JSON.parse(JSON.stringify(variables)) : null,
+        templateVariables: variables
+          ? JSON.parse(JSON.stringify(variables))
+          : null,
         deliveryStatus: 'sent',
       },
     });

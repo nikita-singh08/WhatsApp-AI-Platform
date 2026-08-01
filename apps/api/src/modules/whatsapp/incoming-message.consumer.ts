@@ -39,7 +39,9 @@ export class IncomingMessageConsumer extends WorkerHost {
 
   async process(job: Job<any, any, string>): Promise<any> {
     const { organizationId, conversationId, messageId } = job.data;
-    console.log(`[IncomingMessageConsumer] Processing job ${job.id} for message: ${messageId}`);
+    console.log(
+      `[IncomingMessageConsumer] Processing job ${job.id} for message: ${messageId}`,
+    );
 
     // 1. Fetch message and conversation
     const message = await this.prisma.client.message.findUnique({
@@ -47,7 +49,9 @@ export class IncomingMessageConsumer extends WorkerHost {
     });
 
     if (!message) {
-      console.warn(`[IncomingMessageConsumer] Message ${messageId} not found in DB`);
+      console.warn(
+        `[IncomingMessageConsumer] Message ${messageId} not found in DB`,
+      );
       return;
     }
 
@@ -57,25 +61,33 @@ export class IncomingMessageConsumer extends WorkerHost {
     });
 
     if (!conversation) {
-      console.warn(`[IncomingMessageConsumer] Conversation ${conversationId} not found in DB`);
+      console.warn(
+        `[IncomingMessageConsumer] Conversation ${conversationId} not found in DB`,
+      );
       return;
     }
 
     // 2. Check Operator Takeover Status
     if (conversation.status === 'operator') {
-      console.log(`[IncomingMessageConsumer] Skip AI reply: Operator Takeover is active on conversation ${conversationId}`);
+      console.log(
+        `[IncomingMessageConsumer] Skip AI reply: Operator Takeover is active on conversation ${conversationId}`,
+      );
       return;
     }
 
     // Check monthly message limit & daily cost cap
     try {
       const stats = await this.billingService.getUsageStats(organizationId);
-      if (stats.usage.messagesSentThisMonth >= stats.limits.maxMessagesPerMonth) {
+      if (
+        stats.usage.messagesSentThisMonth >= stats.limits.maxMessagesPerMonth
+      ) {
         throw new Error('Monthly message limit reached for your plan.');
       }
       await this.billingService.trackAndCheckCostCap(organizationId, 0);
     } catch (limitErr: any) {
-      console.warn(`[IncomingMessageConsumer] Limit blocked AI reply: ${limitErr.message}`);
+      console.warn(
+        `[IncomingMessageConsumer] Limit blocked AI reply: ${limitErr.message}`,
+      );
       const sysMsg = await this.prisma.client.message.create({
         data: {
           organizationId,
@@ -94,7 +106,9 @@ export class IncomingMessageConsumer extends WorkerHost {
     // 3. Verify 24-Hour Messaging Window
     const now = new Date();
     if (conversation.windowExpiresAt && conversation.windowExpiresAt < now) {
-      console.log(`[IncomingMessageConsumer] Skip AI reply: 24-hour messaging window expired for conversation ${conversationId}`);
+      console.log(
+        `[IncomingMessageConsumer] Skip AI reply: 24-hour messaging window expired for conversation ${conversationId}`,
+      );
       // Log system warning message
       const sysMsg = await this.prisma.client.message.create({
         data: {
@@ -103,7 +117,8 @@ export class IncomingMessageConsumer extends WorkerHost {
           senderType: 'system',
           direction: 'outbound',
           messageType: 'text',
-          textBody: '24-hour messaging window has expired. AI automation paused until customer messages again.',
+          textBody:
+            '24-hour messaging window has expired. AI automation paused until customer messages again.',
           deliveryStatus: 'sent',
         },
       });
@@ -116,7 +131,7 @@ export class IncomingMessageConsumer extends WorkerHost {
     const org = await this.prisma.client.organization.findUnique({
       where: { id: organizationId },
     });
-    
+
     const tz = org?.timezone || 'UTC';
     const formatter = new Intl.DateTimeFormat('en-US', {
       timeZone: tz,
@@ -126,27 +141,50 @@ export class IncomingMessageConsumer extends WorkerHost {
     const currentHour = parseInt(formatter.format(now), 10);
 
     if (currentHour < 8 || currentHour >= 18) {
-      console.log(`[IncomingMessageConsumer] Time ${currentHour} is outside working hours (8-18) for timezone ${tz}`);
-      
-      const fallbackReply = 'Thank you for messaging us! Our team is currently offline. We will get back to you during our business hours (8:00 AM - 6:00 PM).';
-      
-      await this.sendOutboundReply(organizationId, conversationId, conversation.contact.phoneNumber || '', fallbackReply);
+      console.log(
+        `[IncomingMessageConsumer] Time ${currentHour} is outside working hours (8-18) for timezone ${tz}`,
+      );
+
+      const fallbackReply =
+        'Thank you for messaging us! Our team is currently offline. We will get back to you during our business hours (8:00 AM - 6:00 PM).';
+
+      await this.sendOutboundReply(
+        organizationId,
+        conversationId,
+        conversation.contact.phoneNumber || '',
+        fallbackReply,
+      );
       return;
     }
 
     // Check for Human Escalation Keywords
-    const keywords = ['human', 'operator', 'agent', 'support', 'representative', 'person', 'help'];
-    const isEscalation = keywords.some((k) => message.textBody?.toLowerCase().includes(k));
+    const keywords = [
+      'human',
+      'operator',
+      'agent',
+      'support',
+      'representative',
+      'person',
+      'help',
+    ];
+    const isEscalation = keywords.some((k) =>
+      message.textBody?.toLowerCase().includes(k),
+    );
     if (isEscalation) {
-      console.log(`[IncomingMessageConsumer] Human escalation keyword triggered for conversation ${conversationId}`);
-      
+      console.log(
+        `[IncomingMessageConsumer] Human escalation keyword triggered for conversation ${conversationId}`,
+      );
+
       await this.prisma.client.conversation.update({
         where: { id: conversationId },
         data: { status: 'needs_human' },
       });
 
       // Allocate operator via load-balanced round robin
-      await this.conversationsService.autoAssignConversation(organizationId, conversationId);
+      await this.conversationsService.autoAssignConversation(
+        organizationId,
+        conversationId,
+      );
 
       // Dispatch notification to operators/admins
       await this.notificationsService.dispatchNotification(organizationId, {
@@ -155,8 +193,14 @@ export class IncomingMessageConsumer extends WorkerHost {
         body: `Customer ${conversation.contact.name || conversation.contact.phoneNumber} requested manual operator takeover.`,
       });
 
-      const fallbackReply = 'I am connecting you with a support representative. Please wait a moment.';
-      await this.sendOutboundReply(organizationId, conversationId, conversation.contact.phoneNumber || '', fallbackReply);
+      const fallbackReply =
+        'I am connecting you with a support representative. Please wait a moment.';
+      await this.sendOutboundReply(
+        organizationId,
+        conversationId,
+        conversation.contact.phoneNumber || '',
+        fallbackReply,
+      );
       return;
     }
 
@@ -166,10 +210,10 @@ export class IncomingMessageConsumer extends WorkerHost {
       const routing = await this.routerService.routeMessage(
         organizationId,
         conversation.whatsappAccountId,
-        message.textBody || ''
+        message.textBody || '',
       );
       agentId = routing.agentId;
-      
+
       // Update conversation with selected agent
       await this.prisma.client.conversation.update({
         where: { id: conversationId },
@@ -182,26 +226,46 @@ export class IncomingMessageConsumer extends WorkerHost {
     });
 
     if (!agent) {
-      console.log(`[IncomingMessageConsumer] No active AI Agent found for organization ${organizationId} matching ${agentId}`);
+      console.log(
+        `[IncomingMessageConsumer] No active AI Agent found for organization ${organizationId} matching ${agentId}`,
+      );
       return;
     }
 
     // Inform frontend via WebSockets that the AI is typing
-    this.websockets.broadcastToOrg(organizationId, 'agent.typing', { conversationId, typing: true });
+    this.websockets.broadcastToOrg(organizationId, 'agent.typing', {
+      conversationId,
+      typing: true,
+    });
 
     try {
       // 6. RAG: Retrieve matching Knowledge Base chunks
-      const matchedChunks = await this.kbService.querySimilarity(organizationId, message.textBody || '', 3);
-      const kbContext = matchedChunks.map((c: any) => c.content).join('\n---\n');
+      const matchedChunks = await this.kbService.querySimilarity(
+        organizationId,
+        message.textBody || '',
+        3,
+      );
+      const kbContext = matchedChunks
+        .map((c: any) => c.content)
+        .join('\n---\n');
 
       // 7. Long-Term Memory retrieval
-      const ltmFacts = await this.memoryService.queryLongTermMemory(organizationId, conversation.contactId, message.textBody || '', 2);
-      const ltmContext = ltmFacts.length > 0
-        ? `Relevant historical customer facts:\n${ltmFacts.map((f: any) => `- ${f}`).join('\n')}`
-        : '';
+      const ltmFacts = await this.memoryService.queryLongTermMemory(
+        organizationId,
+        conversation.contactId,
+        message.textBody || '',
+        2,
+      );
+      const ltmContext =
+        ltmFacts.length > 0
+          ? `Relevant historical customer facts:\n${ltmFacts.map((f: any) => `- ${f}`).join('\n')}`
+          : '';
 
       // 8. Short-Term History Context
-      const historyRaw = await this.memoryService.getShortTermHistory(conversationId, 10);
+      const historyRaw = await this.memoryService.getShortTermHistory(
+        conversationId,
+        10,
+      );
       const history: LLMMessage[] = historyRaw.map((h: any) => ({
         role: h.role as 'user' | 'model' | 'system',
         content: h.content || '',
@@ -220,36 +284,122 @@ Use the following context from our official business knowledge base to formulate
 ${kbContext}
 ===============`;
 
-      // 10. Invoke Gemini API with support for interactive tool calls
-      console.log(`[IncomingMessageConsumer] Generating reply for query: "${message.textBody}"`);
-      
+      // A/B test variant assignment
+      const stm = (conversation.shortTermMemory as any) || {};
+      let abVariant = stm.abVariant;
+      if (!abVariant) {
+        abVariant = Math.random() < 0.5 ? 'A' : 'B';
+        await this.prisma.client.conversation.update({
+          where: { id: conversationId },
+          data: {
+            shortTermMemory: {
+              ...stm,
+              abVariant,
+            },
+          },
+        });
+      }
+
+      // BYOK key check via 'gemini' integration provider
+      const geminiIntegration = await this.prisma.client.integration.findFirst({
+        where: { organizationId, provider: 'gemini' },
+      });
+
+      let decryptedApiKey: string | undefined;
+      if (geminiIntegration && geminiIntegration.credentialsEncrypted) {
+        try {
+          const raw = decrypt(geminiIntegration.credentialsEncrypted);
+          const parsed = JSON.parse(raw);
+          decryptedApiKey = parsed.apiKey;
+        } catch (e) {
+          console.warn(
+            '[BYOK] Failed to decrypt organization custom API key, using default',
+          );
+        }
+      }
+
+      // 10. Invoke Gemini API with support for interactive tool calls and provider failover
+      console.log(
+        `[IncomingMessageConsumer] Generating reply [Variant ${abVariant}] for query: "${message.textBody}"`,
+      );
+
       const toolRules = `
 === Allowed Tools ===
 You can call the following tools if needed by outputting ONLY the matching JSON payload format:
 - "check_calendar_availability": {"toolCall": {"name": "check_calendar_availability", "args": {"startDate": "YYYY-MM-DDTHH:mm:ssZ", "endDate": "YYYY-MM-DDTHH:mm:ssZ"}}}
 - "create_calendar_event": {"toolCall": {"name": "create_calendar_event", "args": {"title": "Event Title", "start": "YYYY-MM-DDTHH:mm:ssZ", "end": "YYYY-MM-DDTHH:mm:ssZ"}}}
 - "append_google_sheet_row": {"toolCall": {"name": "append_google_sheet_row", "args": {"spreadsheetId": "id-here", "rowData": ["val1", "val2"]}}}
+- "lookup_order": {"toolCall": {"name": "lookup_order", "args": {"orderId": "order-id-here"}}}
+- "create_crm_lead": {"toolCall": {"name": "create_crm_lead", "args": {"email": "email-here", "name": "name-here"}}}
+- "send_slack_notification": {"toolCall": {"name": "send_slack_notification", "args": {"message": "alert-text-here"}}}
 
 If you need to call a tool, return ONLY the matching JSON block without any extra text or conversational context.
 Otherwise, respond conversational style as normal.`;
 
-      const response = await this.ai.generateChatCompletion({
-        systemInstruction: `${systemInstruction}\n${toolRules}`,
-        messages: history,
-      });
+      let response: any;
+      try {
+        response = await this.ai.generateChatCompletion({
+          systemInstruction: `${systemInstruction}\n${toolRules}\nVariant: ${abVariant}`,
+          messages: history,
+          apiKey: decryptedApiKey,
+        });
+      } catch (llmErr: any) {
+        console.warn(
+          `[IncomingMessageConsumer] Primary LLM call failed: ${llmErr.message}. Initiating failover fallback execution...`,
+        );
+        // Failover: call LLM using platform default fallback (forcing platform api key)
+        response = await this.ai.generateChatCompletion({
+          systemInstruction: `${systemInstruction}\n${toolRules}`,
+          messages: history,
+        });
+      }
 
       // Track cost details
-      const costCents = Math.max(1, Math.round((response.promptTokens * 0.0000075 + response.completionTokens * 0.00003) * 100));
-      await this.billingService.trackAndCheckCostCap(organizationId, costCents, response.totalTokens);
+      const costCents = Math.max(
+        1,
+        Math.round(
+          (response.promptTokens * 0.0000075 +
+            response.completionTokens * 0.00003) *
+            100,
+        ),
+      );
+      await this.billingService.trackAndCheckCostCap(
+        organizationId,
+        costCents,
+        response.totalTokens,
+      );
 
       // Check if response contains a tool call request
       if (response.text.includes('"toolCall"')) {
         try {
-          const jsonStr = response.text.replace(/```json/g, '').replace(/```/g, '').trim();
+          const jsonStr = response.text
+            .replace(/```json/g, '')
+            .replace(/```/g, '')
+            .trim();
           const parsed = JSON.parse(jsonStr);
           if (parsed.toolCall) {
             const { name, args } = parsed.toolCall;
             const requiresApproval = name === 'create_calendar_event';
+
+            const providerName = this.getProviderNameFromToolName(name);
+            const integration = await this.prisma.client.integration.findFirst({
+              where: { organizationId, provider: providerName },
+            });
+
+            if (integration && integration.status === 'unhealthy') {
+              console.warn(
+                `[IncomingMessageConsumer] Skipping tool execution because provider ${integration.provider} is UNHEALTHY.`,
+              );
+              const healthNotice =
+                'I am currently having connection issues with our third-party systems. Let me connect you with a representative.';
+              await this.sendOutboundReply(
+                organizationId,
+                conversationId,
+                conversation.contact.phoneNumber || '',
+                healthNotice,
+              );
+              return;
+            }
 
             // Create agent run record for metadata link
             const agentRun = await this.prisma.client.agentRun.create({
@@ -268,26 +418,65 @@ Otherwise, respond conversational style as normal.`;
               agentRun.id,
               name,
               args,
-              requiresApproval
+              requiresApproval,
             );
 
             if (requiresApproval) {
-              const approvalNotice = "I need approval from an administrator to book this appointment slot. I will get back to you once approved.";
-              await this.sendOutboundReply(organizationId, conversationId, conversation.contact.phoneNumber || '', approvalNotice);
+              const approvalNotice =
+                'I need approval from an administrator to book this appointment slot. I will get back to you once approved.';
+              await this.sendOutboundReply(
+                organizationId,
+                conversationId,
+                conversation.contact.phoneNumber || '',
+                approvalNotice,
+              );
               return;
             } else {
               // Execute tool synchronously in background
               let toolOutput: any;
               try {
                 if (name === 'check_calendar_availability') {
-                  toolOutput = await this.integrationsService.checkCalendarAvailability(organizationId, args.startDate, args.endDate);
+                  toolOutput =
+                    await this.integrationsService.checkCalendarAvailability(
+                      organizationId,
+                      args.startDate,
+                      args.endDate,
+                    );
                 } else if (name === 'append_google_sheet_row') {
-                  toolOutput = await this.integrationsService.appendGoogleSheetRow(organizationId, args.spreadsheetId, args.rowData);
+                  toolOutput =
+                    await this.integrationsService.appendGoogleSheetRow(
+                      organizationId,
+                      args.spreadsheetId,
+                      args.rowData,
+                    );
+                } else if (name === 'lookup_order') {
+                  toolOutput = await this.integrationsService.lookupOrder(
+                    organizationId,
+                    args.orderId,
+                  );
+                } else if (name === 'create_crm_lead') {
+                  toolOutput = await this.integrationsService.createCrmLead(
+                    organizationId,
+                    args.email,
+                    args.name,
+                  );
+                } else if (name === 'send_slack_notification') {
+                  toolOutput =
+                    await this.integrationsService.sendSlackNotification(
+                      organizationId,
+                      args.message,
+                    );
                 }
-                await this.toolExecutionService.completeExecution(toolExec.id, toolOutput);
+                await this.toolExecutionService.completeExecution(
+                  toolExec.id,
+                  toolOutput,
+                );
               } catch (execErr: any) {
                 toolOutput = { error: execErr.message };
-                await this.toolExecutionService.failExecution(toolExec.id, execErr.message);
+                await this.toolExecutionService.failExecution(
+                  toolExec.id,
+                  execErr.message,
+                );
               }
 
               // Inject tool output to history and call LLM completion again!
@@ -295,14 +484,23 @@ Otherwise, respond conversational style as normal.`;
                 role: 'user',
                 content: `Tool Execution Result (${name}): ${JSON.stringify(toolOutput)}`,
               };
-              
+
               const finalResponse = await this.ai.generateChatCompletion({
                 systemInstruction,
                 messages: [...history, toolMessage],
               });
 
-              const sanitizedReply = this.applySafetyFilters(finalResponse.text);
-              await this.sendOutboundReply(organizationId, conversationId, conversation.contact.phoneNumber || '', sanitizedReply, finalResponse, agent.id);
+              const sanitizedReply = this.applySafetyFilters(
+                finalResponse.text,
+              );
+              await this.sendOutboundReply(
+                organizationId,
+                conversationId,
+                conversation.contact.phoneNumber || '',
+                sanitizedReply,
+                finalResponse,
+                agent.id,
+              );
               return;
             }
           }
@@ -315,20 +513,44 @@ Otherwise, respond conversational style as normal.`;
       const sanitizedReply = this.applySafetyFilters(response.text);
 
       // 12. Send reply via WhatsApp Meta API and save message
-      await this.sendOutboundReply(organizationId, conversationId, conversation.contact.phoneNumber || '', sanitizedReply, response, agent.id);
+      await this.sendOutboundReply(
+        organizationId,
+        conversationId,
+        conversation.contact.phoneNumber || '',
+        sanitizedReply,
+        response,
+        agent.id,
+      );
 
       // 13. Auto-Extract details for Long-Term Memory (in background)
-      this.memoryService.extractAndSaveFacts(organizationId, conversation.contactId, conversationId, message.textBody || '')
-        .catch((err) => console.error('[IncomingMessageConsumer LTM Background Error]', err));
-
+      this.memoryService
+        .extractAndSaveFacts(
+          organizationId,
+          conversation.contactId,
+          conversationId,
+          message.textBody || '',
+        )
+        .catch((err) =>
+          console.error('[IncomingMessageConsumer LTM Background Error]', err),
+        );
     } catch (err: any) {
       console.error('[IncomingMessageConsumer Error]', err);
       // Send fallback error warning
-      const fallback = agent.fallbackMessage || "I'm having trouble processing that query. Let me connect you with a team member.";
-      await this.sendOutboundReply(organizationId, conversationId, conversation.contact.phoneNumber || '', fallback);
+      const fallback =
+        agent.fallbackMessage ||
+        "I'm having trouble processing that query. Let me connect you with a team member.";
+      await this.sendOutboundReply(
+        organizationId,
+        conversationId,
+        conversation.contact.phoneNumber || '',
+        fallback,
+      );
     } finally {
       // Clear typing indicator
-      this.websockets.broadcastToOrg(organizationId, 'agent.typing', { conversationId, typing: false });
+      this.websockets.broadcastToOrg(organizationId, 'agent.typing', {
+        conversationId,
+        typing: false,
+      });
     }
   }
 
@@ -345,15 +567,22 @@ Otherwise, respond conversational style as normal.`;
     });
 
     if (!whatsappAccount) {
-      console.error('[IncomingMessageConsumer sendOutboundReply] No active WhatsApp account found');
+      console.error(
+        '[IncomingMessageConsumer sendOutboundReply] No active WhatsApp account found',
+      );
       return;
     }
 
     // Enforce daily messaging rate limits
     try {
-      await this.qualityService.trackAndEnforceOutboundRateLimits(orgId, whatsappAccount.id);
+      await this.qualityService.trackAndEnforceOutboundRateLimits(
+        orgId,
+        whatsappAccount.id,
+      );
     } catch (rateErr: any) {
-      console.warn(`[sendOutboundReply] Messaging rate limits blocked outbound reply: ${rateErr.message}`);
+      console.warn(
+        `[sendOutboundReply] Messaging rate limits blocked outbound reply: ${rateErr.message}`,
+      );
       return;
     }
 
@@ -388,17 +617,21 @@ Otherwise, respond conversational style as normal.`;
 
     // Save cost tracking if AI logs token details
     if (aiResult && aiResult.promptTokens && agentId) {
-      await this.prisma.client.agentRun.create({
-        data: {
-          organizationId: orgId,
-          agentId,
-          conversationId: convId,
-          status: 'success',
-          promptTokens: aiResult.promptTokens,
-          completionTokens: aiResult.completionTokens,
-          totalTokens: aiResult.totalTokens,
-        },
-      }).catch((e: any) => console.error('Failed to log AgentRun cost telemetry', e));
+      await this.prisma.client.agentRun
+        .create({
+          data: {
+            organizationId: orgId,
+            agentId,
+            conversationId: convId,
+            status: 'success',
+            promptTokens: aiResult.promptTokens,
+            completionTokens: aiResult.completionTokens,
+            totalTokens: aiResult.totalTokens,
+          },
+        })
+        .catch((e: any) =>
+          console.error('Failed to log AgentRun cost telemetry', e),
+        );
     }
 
     // Update conversation last message timestamp
@@ -414,7 +647,10 @@ Otherwise, respond conversational style as normal.`;
   private applySafetyFilters(text: string): string {
     // 1. Simple PII Scrubbing (emails and general phone formats)
     let sanitized = text
-      .replace(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, '[EMAIL MASKED]')
+      .replace(
+        /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g,
+        '[EMAIL MASKED]',
+      )
       .replace(/\+?[0-9]{3}-?[0-9]{6,10}/g, '[PHONE MASKED]');
 
     // 2. Simple Profanity Masking
@@ -424,5 +660,20 @@ Otherwise, respond conversational style as normal.`;
     }
 
     return sanitized;
+  }
+
+  private getProviderNameFromToolName(toolName: string): string {
+    if (toolName.includes('calendar')) return 'google_calendar';
+    if (toolName.includes('sheet')) return 'google_sheets';
+    if (toolName.includes('order') || toolName.includes('shopify'))
+      return 'shopify';
+    if (
+      toolName.includes('crm') ||
+      toolName.includes('lead') ||
+      toolName.includes('hubspot')
+    )
+      return 'hubspot';
+    if (toolName.includes('slack')) return 'slack';
+    return '';
   }
 }

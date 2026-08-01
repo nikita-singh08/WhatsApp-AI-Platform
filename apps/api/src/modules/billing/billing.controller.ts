@@ -29,7 +29,7 @@ export class BillingController {
   async startCheckout(
     @Param('orgId') orgId: string,
     @Body('plan') plan: string,
-    @Body('interval') interval: 'monthly' | 'yearly' = 'monthly'
+    @Body('interval') interval: 'monthly' | 'yearly' = 'monthly',
   ) {
     return this.billingService.createCheckoutSession(orgId, plan, interval);
   }
@@ -56,7 +56,7 @@ export class BillingController {
   @Roles('admin', 'owner')
   async updateCostCap(
     @Param('orgId') orgId: string,
-    @Body('costCapCents') costCapCents: number
+    @Body('costCapCents') costCapCents: number,
   ) {
     if (costCapCents === undefined || costCapCents < 0) {
       throw new BadRequestException('Valid daily cost cap value is required.');
@@ -74,18 +74,22 @@ export class StripeWebhookController {
   async handleStripeWebhook(
     @Headers('stripe-signature') signature: string,
     @Req() req: any,
-    @Res() res: any
+    @Res() res: any,
   ) {
     const rawBody = req.rawBody;
     if (!rawBody) {
-      return res.status(HttpStatus.BAD_REQUEST).send('Missing raw request body needed for signature verification.');
+      return res
+        .status(HttpStatus.BAD_REQUEST)
+        .send('Missing raw request body needed for signature verification.');
     }
 
     try {
       await this.billingService.handleWebhook(signature, rawBody);
       res.status(HttpStatus.OK).send({ received: true });
     } catch (err: any) {
-      res.status(HttpStatus.BAD_REQUEST).send(err.message || 'Webhook consumption error');
+      res
+        .status(HttpStatus.BAD_REQUEST)
+        .send(err.message || 'Webhook consumption error');
     }
   }
 }

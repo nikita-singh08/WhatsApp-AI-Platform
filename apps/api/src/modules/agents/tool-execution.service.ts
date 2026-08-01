@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { WebsocketsGateway } from '../websockets/websockets.gateway';
 
@@ -6,7 +10,7 @@ import { WebsocketsGateway } from '../websockets/websockets.gateway';
 export class ToolExecutionService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly websockets: WebsocketsGateway
+    private readonly websockets: WebsocketsGateway,
   ) {}
 
   /**
@@ -17,10 +21,10 @@ export class ToolExecutionService {
     agentRunId: string,
     toolName: string,
     input: any,
-    requiresApproval: boolean
+    requiresApproval: boolean,
   ) {
     const status = requiresApproval ? 'pending_approval' : 'executing';
-    
+
     const execution = await this.prisma.client.toolExecution.create({
       data: {
         organizationId: orgId,
@@ -53,7 +57,9 @@ export class ToolExecutionService {
     }
 
     if (execution.status !== 'pending_approval') {
-      throw new BadRequestException(`Cannot approve request in current status: ${execution.status}`);
+      throw new BadRequestException(
+        `Cannot approve request in current status: ${execution.status}`,
+      );
     }
 
     const updated = await this.prisma.client.toolExecution.update({
@@ -89,7 +95,9 @@ export class ToolExecutionService {
     }
 
     if (execution.status !== 'pending_approval') {
-      throw new BadRequestException(`Cannot reject request in current status: ${execution.status}`);
+      throw new BadRequestException(
+        `Cannot reject request in current status: ${execution.status}`,
+      );
     }
 
     const updated = await this.prisma.client.toolExecution.update({

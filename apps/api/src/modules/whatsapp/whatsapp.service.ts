@@ -1,7 +1,16 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConnectWhatsappDto } from './dto/connect-whatsapp.dto';
-import { encrypt, decrypt, verifyMetaSignature, WhatsappClient } from '@whatsai/integrations';
+import {
+  encrypt,
+  decrypt,
+  verifyMetaSignature,
+  WhatsappClient,
+} from '@whatsai/integrations';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { WebsocketsGateway } from '../websockets/websockets.gateway';
@@ -29,12 +38,17 @@ export class WhatsappService {
     });
 
     if (existing) {
-      throw new BadRequestException('This WhatsApp Phone Number ID is already connected to another organization');
+      throw new BadRequestException(
+        'This WhatsApp Phone Number ID is already connected to another organization',
+      );
     }
 
     try {
       // 2. Validate token and fetch number details using WhatsappClient
-      const details = await WhatsappClient.getAccountDetails(dto.phoneNumberId, dto.accessToken);
+      const details = await WhatsappClient.getAccountDetails(
+        dto.phoneNumberId,
+        dto.accessToken,
+      );
 
       // 3. Encrypt the access token
       const encryptedToken = encrypt(dto.accessToken);
@@ -64,7 +78,9 @@ export class WhatsappService {
 
       return account;
     } catch (error: any) {
-      throw new BadRequestException(`Failed to connect WhatsApp account: ${error.message}`);
+      throw new BadRequestException(
+        `Failed to connect WhatsApp account: ${error.message}`,
+      );
     }
   }
 
@@ -95,7 +111,9 @@ export class WhatsappService {
     });
 
     if (!account) {
-      throw new NotFoundException('WhatsApp account not found in this organization');
+      throw new NotFoundException(
+        'WhatsApp account not found in this organization',
+      );
     }
 
     // Set active status to false (soft delete to preserve message history)
@@ -113,18 +131,23 @@ export class WhatsappService {
   /**
    * Webhook Verification GET
    */
-  verifyWebhook(query: { 'hub.mode': string; 'hub.verify_token': string; 'hub.challenge': string }) {
+  verifyWebhook(query: {
+    'hub.mode': string;
+    'hub.verify_token': string;
+    'hub.challenge': string;
+  }) {
     const mode = query['hub.mode'];
     const token = query['hub.verify_token'];
     const challenge = query['hub.challenge'];
 
-    const verifyToken = process.env.META_WEBHOOK_VERIFY_TOKEN || 'whatsai_verify_token_123';
+    const verifyToken =
+      process.env.META_WEBHOOK_VERIFY_TOKEN || 'whatsai_verify_token_123';
 
     if (mode === 'subscribe' && token === verifyToken) {
       console.log('[Webhook] Meta validation success!');
       return challenge;
     }
-    
+
     throw new ForbiddenException('Webhook verification failed');
   }
 
@@ -133,7 +156,7 @@ export class WhatsappService {
    */
   async handleWebhookPayload(rawBody: string, signature: string, payload: any) {
     const appSecret = process.env.META_APP_SECRET || 'meta_app_secret_123';
-    
+
     // 1. Verify HMAC-SHA256 Signature
     const isValid = verifyMetaSignature(rawBody, signature, appSecret);
     if (!isValid) {
@@ -143,7 +166,7 @@ export class WhatsappService {
 
     // 2. Log webhook event in database
     const eventId = payload.entry?.[0]?.id || `evt_${Date.now()}`;
-    
+
     const event = await this.prisma.client.webhookEvent.create({
       data: {
         provider: 'meta',
@@ -207,7 +230,7 @@ export class WhatsappService {
       const statusUpdate = value.statuses[0];
       const messageId = statusUpdate.id;
       const deliveryStatus = statusUpdate.status; // sent, delivered, read, failed
-      
+
       const message = await this.prisma.client.message.findUnique({
         where: { whatsappMessageId: messageId },
       });
@@ -324,7 +347,11 @@ export class WhatsappService {
       });
 
       // Broadcast customer incoming message in real-time
-      this.websockets.broadcastToOrg(account.organizationId, 'message.created', dbMessage);
+      this.websockets.broadcastToOrg(
+        account.organizationId,
+        'message.created',
+        dbMessage,
+      );
 
       // Enqueue job to background queue for AI processing
       await this.incomingQueue.add(
@@ -337,7 +364,7 @@ export class WhatsappService {
         {
           removeOnComplete: true,
           removeOnFail: 1000,
-        }
+        },
       );
 
       // Mark webhook event as processed

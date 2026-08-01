@@ -1,7 +1,8 @@
 import { encrypt, decrypt, verifyMetaSignature } from '@whatsai/integrations';
 
 describe('Crypto Utilities', () => {
-  const secretKey = '73e8e19c3fb45df5a3c20023ee45c43d9b1525a77b7e5623cf51d8b13c8f8b91';
+  const secretKey =
+    '73e8e19c3fb45df5a3c20023ee45c43d9b1525a77b7e5623cf51d8b13c8f8b91';
 
   beforeAll(() => {
     process.env.ENCRYPTION_KEY = secretKey;
@@ -10,7 +11,7 @@ describe('Crypto Utilities', () => {
   it('should encrypt and decrypt a string successfully', () => {
     const plainText = 'E2E-WhatsApp-Access-Token-12345';
     const encrypted = encrypt(plainText);
-    
+
     expect(encrypted).toContain(':');
     const decrypted = decrypt(encrypted);
     expect(decrypted).toBe(plainText);
@@ -24,7 +25,7 @@ describe('Crypto Utilities', () => {
   it('should verify a valid Meta signature', () => {
     const rawBody = '{"object":"whatsapp_business_account","entry":[]}';
     const appSecret = 'my_facebook_app_secret';
-    
+
     // Compute valid signature
     const crypto = require('crypto');
     const expectedHash = crypto
@@ -41,7 +42,7 @@ describe('Crypto Utilities', () => {
     const isValid = verifyMetaSignature(
       'rawbody',
       'sha256=wronghash',
-      'secret'
+      'secret',
     );
     expect(isValid).toBe(false);
   });

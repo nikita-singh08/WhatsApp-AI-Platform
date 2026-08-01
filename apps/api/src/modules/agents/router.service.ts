@@ -15,8 +15,12 @@ export class RouterService {
   async routeMessage(
     orgId: string,
     waAccountId: string,
-    messageText: string
-  ): Promise<{ agentId: string; confidence: number; isDefaultFallback: boolean }> {
+    messageText: string,
+  ): Promise<{
+    agentId: string;
+    confidence: number;
+    isDefaultFallback: boolean;
+  }> {
     // 1. Get all active agents in the organization
     const activeAgents = await this.prisma.client.agent.findMany({
       where: { organizationId: orgId, status: 'active' },
@@ -27,11 +31,12 @@ export class RouterService {
     }
 
     // Find the default agent for this WhatsApp account
-    const defaultMapping = await this.prisma.client.whatsappAccountAgent.findFirst({
-      where: { whatsappAccountId: waAccountId, isDefault: true },
-      include: { agent: true },
-    });
-    
+    const defaultMapping =
+      await this.prisma.client.whatsappAccountAgent.findFirst({
+        where: { whatsappAccountId: waAccountId, isDefault: true },
+        include: { agent: true },
+      });
+
     const defaultAgent = defaultMapping?.agent || activeAgents[0];
 
     // If there is only one agent, route directly to it with confidence 1.0
@@ -49,7 +54,7 @@ export class RouterService {
         (a) =>
           `ID: ${a.id}\nName: ${a.name}\nType: ${a.type}\nDescription: ${
             a.description || 'No description provided.'
-          }`
+          }`,
       )
       .join('\n\n');
 
@@ -77,7 +82,10 @@ Return ONLY the raw JSON block without markdown formatting or surrounding backti
         messages: [{ role: 'user', content: prompt }],
       });
 
-      const jsonStr = response.text.replace(/```json/g, '').replace(/```/g, '').trim();
+      const jsonStr = response.text
+        .replace(/```json/g, '')
+        .replace(/```/g, '')
+        .trim();
       const parsed = JSON.parse(jsonStr);
 
       if (parsed.agentId && parsed.confidence >= 0.5) {
@@ -85,7 +93,7 @@ Return ONLY the raw JSON block without markdown formatting or surrounding backti
         const exists = activeAgents.some((a) => a.id === parsed.agentId);
         if (exists) {
           this.logger.log(
-            `Routed query to agent: ${parsed.agentId} with confidence: ${parsed.confidence}`
+            `Routed query to agent: ${parsed.agentId} with confidence: ${parsed.confidence}`,
           );
           return {
             agentId: parsed.agentId,
@@ -99,7 +107,9 @@ Return ONLY the raw JSON block without markdown formatting or surrounding backti
     }
 
     // 3. Fallback to default agent if confidence is low or query parsing failed
-    this.logger.log(`Routing query to default fallback agent: ${defaultAgent.id}`);
+    this.logger.log(
+      `Routing query to default fallback agent: ${defaultAgent.id}`,
+    );
     return {
       agentId: defaultAgent.id,
       confidence: 0.0,

@@ -10,14 +10,16 @@ export class QualityService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly notificationsService: NotificationsService
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   /**
    * Poll Meta API for all WhatsApp account quality ratings and log changes
    */
   async pollQualityRatings() {
-    this.logger.log('Running automated WhatsApp account quality ratings polling job...');
+    this.logger.log(
+      'Running automated WhatsApp account quality ratings polling job...',
+    );
     const accounts = await this.prisma.client.whatsappAccount.findMany({
       where: { isActive: true },
     });
@@ -28,11 +30,16 @@ export class QualityService {
         let quality = 'green'; // Default mock status
 
         try {
-          const details = await WhatsappClient.getAccountDetails(acc.phoneNumberId, decryptedToken);
+          const details = await WhatsappClient.getAccountDetails(
+            acc.phoneNumberId,
+            decryptedToken,
+          );
           quality = details.qualityRating || 'green';
         } catch (e: any) {
           // If offline or mock token, keep green/unknown
-          this.logger.warn(`Could not connect to Meta Graph API for account ${acc.id}, using mock rating: ${e.message}`);
+          this.logger.warn(
+            `Could not connect to Meta Graph API for account ${acc.id}, using mock rating: ${e.message}`,
+          );
         }
 
         // 1. Update WhatsappAccount status fields
@@ -56,14 +63,19 @@ export class QualityService {
 
         // 3. Check for quality degradation threshold and dispatch alerts
         if (quality === 'yellow' || quality === 'red') {
-          await this.notificationsService.dispatchNotification(acc.organizationId, {
-            type: 'quality_drop',
-            title: `WhatsApp Quality Warning (${quality.toUpperCase()})`,
-            body: `Your connected WhatsApp number ${acc.displayPhoneNumber || acc.phoneNumberId} has dropped to ${quality} status. Please check your template reports.`,
-          });
+          await this.notificationsService.dispatchNotification(
+            acc.organizationId,
+            {
+              type: 'quality_drop',
+              title: `WhatsApp Quality Warning (${quality.toUpperCase()})`,
+              body: `Your connected WhatsApp number ${acc.displayPhoneNumber || acc.phoneNumberId} has dropped to ${quality} status. Please check your template reports.`,
+            },
+          );
         }
       } catch (err: any) {
-        this.logger.error(`Failed to poll quality rating for account ${acc.id}: ${err.message}`);
+        this.logger.error(
+          `Failed to poll quality rating for account ${acc.id}: ${err.message}`,
+        );
       }
     }
   }
@@ -81,7 +93,10 @@ export class QualityService {
     // Reset counter if day has passed
     const now = new Date();
     const lastReset = acc.dailyOutboundResetAt || new Date(0);
-    const dayHasPassed = now.getDate() !== lastReset.getDate() || now.getMonth() !== lastReset.getMonth() || now.getFullYear() !== lastReset.getFullYear();
+    const dayHasPassed =
+      now.getDate() !== lastReset.getDate() ||
+      now.getMonth() !== lastReset.getMonth() ||
+      now.getFullYear() !== lastReset.getFullYear();
 
     let count = acc.dailyOutboundCount;
     if (dayHasPassed) {
@@ -108,7 +123,9 @@ export class QualityService {
         title: 'Meta Daily Outbound Messaging Limit Reached',
         body: `Organization messaging tier limits (${limit} messages/day) exceeded. Outbound notifications paused.`,
       });
-      throw new BadRequestException(`Meta tier daily outbound limit of ${limit} messages reached.`);
+      throw new BadRequestException(
+        `Meta tier daily outbound limit of ${limit} messages reached.`,
+      );
     }
 
     // Increment count

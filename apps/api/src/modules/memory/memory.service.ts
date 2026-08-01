@@ -77,14 +77,20 @@ export class MemoryService {
   /**
    * Check if a new fact conflicts with any existing memories
    */
-  async findConflictingMemory(orgId: string, contactId: string, newFact: string): Promise<string | null> {
+  async findConflictingMemory(
+    orgId: string,
+    contactId: string,
+    newFact: string,
+  ): Promise<string | null> {
     const existing = await this.prisma.client.memory.findMany({
       where: { contactId, organizationId: orgId },
     });
 
     if (existing.length === 0) return null;
 
-    const listStr = existing.map((m) => `ID: ${m.id} - Content: "${m.content}"`).join('\n');
+    const listStr = existing
+      .map((m) => `ID: ${m.id} - Content: "${m.content}"`)
+      .join('\n');
 
     const prompt = `New Fact: "${newFact}"
 Existing Facts:
@@ -105,7 +111,10 @@ If no conflict or update is found, return ONLY JSON containing:
       const response = await this.ai.generateChatCompletion({
         messages: [{ role: 'user', content: prompt }],
       });
-      const jsonStr = response.text.replace(/```json/g, '').replace(/```/g, '').trim();
+      const jsonStr = response.text
+        .replace(/```json/g, '')
+        .replace(/```/g, '')
+        .trim();
       const parsed = JSON.parse(jsonStr);
       if (parsed.conflicts && parsed.conflictingMemoryId) {
         return parsed.conflictingMemoryId;
@@ -119,7 +128,12 @@ If no conflict or update is found, return ONLY JSON containing:
   /**
    * Auto-extract user details / preferences via Gemini and save in long-term memory
    */
-  async extractAndSaveFacts(orgId: string, contactId: string, convId: string, messageText: string) {
+  async extractAndSaveFacts(
+    orgId: string,
+    contactId: string,
+    convId: string,
+    messageText: string,
+  ) {
     const prompt = `Analyze this customer message: "${messageText}".
 Extract any permanent user preferences, facts, or attributes (e.g. name, location preference, dietary notes, invoice request).
 Return them as a comma-separated list of short claims. If no new attributes or facts are found, return exactly "NONE".`;
@@ -130,17 +144,30 @@ Return them as a comma-separated list of short claims. If no new attributes or f
       });
 
       const text = result.text.trim();
-      if (text === 'NONE' || text.toLowerCase().includes('mock ai response') || text.includes('none')) {
+      if (
+        text === 'NONE' ||
+        text.toLowerCase().includes('mock ai response') ||
+        text.includes('none')
+      ) {
         return;
       }
 
-      const facts = text.split(',').map((f) => f.trim()).filter((f) => f.length > 0);
+      const facts = text
+        .split(',')
+        .map((f) => f.trim())
+        .filter((f) => f.length > 0);
 
       for (const fact of facts) {
         // Resolve conflicts: older matching memory gets updated/deleted
-        const conflictId = await this.findConflictingMemory(orgId, contactId, fact);
+        const conflictId = await this.findConflictingMemory(
+          orgId,
+          contactId,
+          fact,
+        );
         if (conflictId) {
-          console.log(`[MemoryService] Deleting conflicting memory fact: ${conflictId}`);
+          console.log(
+            `[MemoryService] Deleting conflicting memory fact: ${conflictId}`,
+          );
           await this.prisma.client.memory.delete({
             where: { id: conflictId },
           });
@@ -162,7 +189,9 @@ Return them as a comma-separated list of short claims. If no new attributes or f
           1,
           vectorString,
         );
-        console.log(`[MemoryService] Saved fact: "${fact}" for contact ${contactId}`);
+        console.log(
+          `[MemoryService] Saved fact: "${fact}" for contact ${contactId}`,
+        );
       }
     } catch (err) {
       console.error('[Memory Fact Extraction Failed]', err);

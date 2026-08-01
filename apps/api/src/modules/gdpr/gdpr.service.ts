@@ -7,10 +7,17 @@ export class GDPRService implements OnModuleInit {
 
   onModuleInit() {
     // Trigger prune job on startup, then execute every 24 hours
-    this.pruneOldConversations().catch((e) => console.error('[GDPRService] Automated pruning failed:', e));
-    setInterval(() => {
-      this.pruneOldConversations().catch((e) => console.error('[GDPRService] Automated pruning failed:', e));
-    }, 24 * 60 * 60 * 1000);
+    this.pruneOldConversations().catch((e) =>
+      console.error('[GDPRService] Automated pruning failed:', e),
+    );
+    setInterval(
+      () => {
+        this.pruneOldConversations().catch((e) =>
+          console.error('[GDPRService] Automated pruning failed:', e),
+        );
+      },
+      24 * 60 * 60 * 1000,
+    );
   }
 
   /**
@@ -75,7 +82,9 @@ export class GDPRService implements OnModuleInit {
     });
 
     if (!fact || fact.organizationId !== orgId) {
-      throw new NotFoundException('Memory fact not found inside this workspace.');
+      throw new NotFoundException(
+        'Memory fact not found inside this workspace.',
+      );
     }
 
     await this.prisma.client.memory.delete({
@@ -89,7 +98,9 @@ export class GDPRService implements OnModuleInit {
    * Prune conversations older than workspace plan configuration retention periods
    */
   async pruneOldConversations() {
-    console.log('[GDPRService] Running automated data retention pruning job...');
+    console.log(
+      '[GDPRService] Running automated data retention pruning job...',
+    );
     const orgs = await this.prisma.client.organization.findMany();
 
     for (const org of orgs) {
@@ -99,7 +110,12 @@ export class GDPRService implements OnModuleInit {
       const plan = sub?.plan || 'free';
 
       // Pruning thresholds: Free/Starter=30 days, Growth=90 days, Agency=365 days
-      const retentionDays = plan === 'free' || plan === 'starter' ? 30 : plan === 'growth' ? 90 : 365;
+      const retentionDays =
+        plan === 'free' || plan === 'starter'
+          ? 30
+          : plan === 'growth'
+            ? 90
+            : 365;
       const thresholdDate = new Date();
       thresholdDate.setDate(thresholdDate.getDate() - retentionDays);
 
@@ -125,7 +141,9 @@ export class GDPRService implements OnModuleInit {
             where: { id: { in: convIds } },
           }),
         ]);
-        console.log(`[GDPRService] Pruned ${convIds.length} conversations older than ${retentionDays} days for workspace: ${org.name}`);
+        console.log(
+          `[GDPRService] Pruned ${convIds.length} conversations older than ${retentionDays} days for workspace: ${org.name}`,
+        );
       }
     }
   }

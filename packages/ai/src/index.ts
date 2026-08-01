@@ -32,11 +32,13 @@ export interface LLMProvider {
     messages: LLMMessage[];
     tools?: LLMToolDefinition[];
     temperature?: number;
+    apiKey?: string;
   }): Promise<ChatCompletionResult>;
 
   generateEmbedding(params: {
     model?: string;
     text: string;
+    apiKey?: string;
   }): Promise<EmbeddingResult>;
 }
 
@@ -54,8 +56,9 @@ export class GeminiProvider implements LLMProvider {
     messages: LLMMessage[];
     tools?: LLMToolDefinition[];
     temperature?: number;
+    apiKey?: string;
   }): Promise<ChatCompletionResult> {
-    const apiKey = this.getApiKey();
+    const apiKey = params.apiKey || this.getApiKey();
     const modelName = params.model || 'gemini-1.5-flash';
 
     console.log(`[GeminiProvider] Calling Chat Completion with model: ${modelName}`);
@@ -114,8 +117,9 @@ export class GeminiProvider implements LLMProvider {
   async generateEmbedding(params: {
     model?: string;
     text: string;
+    apiKey?: string;
   }): Promise<EmbeddingResult> {
-    const apiKey = this.getApiKey();
+    const apiKey = params.apiKey || this.getApiKey();
     const modelName = params.model || 'text-embedding-004';
 
     console.log(`[GeminiProvider] Calling generateEmbedding with model: ${modelName}`);

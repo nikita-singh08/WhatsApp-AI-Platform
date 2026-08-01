@@ -1,4 +1,9 @@
-import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  CanActivate,
+  ExecutionContext,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -6,7 +11,7 @@ import { PrismaService } from '../prisma/prisma.service';
 export class AuthGuard implements CanActivate {
   constructor(
     private readonly authService: AuthService,
-    private readonly prisma: PrismaService
+    private readonly prisma: PrismaService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -19,7 +24,7 @@ export class AuthGuard implements CanActivate {
 
     try {
       const userId = this.authService.verifySessionToken(token);
-      
+
       const user = await this.prisma.client.user.findUnique({
         where: { id: userId },
         include: {
@@ -46,7 +51,9 @@ export class AuthGuard implements CanActivate {
 
       return true;
     } catch (error) {
-      throw new UnauthorizedException('Invalid or expired authentication session');
+      throw new UnauthorizedException(
+        'Invalid or expired authentication session',
+      );
     }
   }
 

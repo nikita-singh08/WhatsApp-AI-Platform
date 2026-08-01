@@ -25,7 +25,10 @@ export class WhatsappController {
   @Roles('owner', 'admin')
   @UseGuards(AuthGuard, RbacGuard)
   @Post('api/organizations/:orgId/whatsapp-accounts')
-  async connectAccount(@Param('orgId') orgId: string, @Body() dto: ConnectWhatsappDto) {
+  async connectAccount(
+    @Param('orgId') orgId: string,
+    @Body() dto: ConnectWhatsappDto,
+  ) {
     return this.whatsappService.connectAccount(orgId, dto);
   }
 
@@ -40,7 +43,7 @@ export class WhatsappController {
   @Delete('api/organizations/:orgId/whatsapp-accounts/:accountId')
   async disconnectAccount(
     @Param('orgId') orgId: string,
-    @Param('accountId') accountId: string
+    @Param('accountId') accountId: string,
   ) {
     return this.whatsappService.disconnectAccount(orgId, accountId);
   }
@@ -57,9 +60,15 @@ export class WhatsappController {
   async handleWebhook(
     @Req() req: any,
     @Headers('x-hub-signature-256') signature: string,
-    @Body() payload: any
+    @Body() payload: any,
   ) {
-    const rawBody = req.rawBody ? req.rawBody.toString('utf8') : JSON.stringify(payload);
-    return this.whatsappService.handleWebhookPayload(rawBody, signature, payload);
+    const rawBody = req.rawBody
+      ? req.rawBody.toString('utf8')
+      : JSON.stringify(payload);
+    return this.whatsappService.handleWebhookPayload(
+      rawBody,
+      signature,
+      payload,
+    );
   }
 }

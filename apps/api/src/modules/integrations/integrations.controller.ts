@@ -26,9 +26,14 @@ export class IntegrationsController {
     @Param('orgId') orgId: string,
     @Param('provider') provider: string,
     @Body('credentials') credentials: any,
-    @Body('config') config?: any
+    @Body('config') config?: any,
   ) {
-    return this.integrationsService.connectIntegration(orgId, provider, credentials, config);
+    return this.integrationsService.connectIntegration(
+      orgId,
+      provider,
+      credentials,
+      config,
+    );
   }
 
   @Delete(':provider')
@@ -36,7 +41,7 @@ export class IntegrationsController {
   @HttpCode(HttpStatus.OK)
   async disconnect(
     @Param('orgId') orgId: string,
-    @Param('provider') provider: string
+    @Param('provider') provider: string,
   ) {
     return this.integrationsService.disconnectIntegration(orgId, provider);
   }
@@ -45,7 +50,7 @@ export class IntegrationsController {
   @Roles('admin', 'operator', 'readonly')
   async getStatus(
     @Param('orgId') orgId: string,
-    @Param('provider') provider: string
+    @Param('provider') provider: string,
   ) {
     return this.integrationsService.getIntegration(orgId, provider);
   }

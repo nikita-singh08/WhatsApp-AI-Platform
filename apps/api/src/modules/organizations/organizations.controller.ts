@@ -12,7 +12,12 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { OrganizationsService } from './organizations.service';
-import { CreateOrganizationDto, UpdateOrganizationDto, InviteMemberDto, UpdateMemberDto } from './dto/organization.dto';
+import {
+  CreateOrganizationDto,
+  UpdateOrganizationDto,
+  InviteMemberDto,
+  UpdateMemberDto,
+} from './dto/organization.dto';
 import { AuthGuard } from '../auth/auth.guard';
 import { RbacGuard } from '../auth/rbac.guard';
 import { Roles } from '../auth/roles.decorator';
@@ -43,7 +48,10 @@ export class OrganizationsController {
   @Roles('owner', 'admin')
   @UseGuards(AuthGuard, RbacGuard)
   @Patch('organizations/:orgId')
-  async update(@Param('orgId') orgId: string, @Body() dto: UpdateOrganizationDto) {
+  async update(
+    @Param('orgId') orgId: string,
+    @Body() dto: UpdateOrganizationDto,
+  ) {
     return this.organizationsService.update(orgId, dto);
   }
 
@@ -59,7 +67,7 @@ export class OrganizationsController {
   async updateMember(
     @Param('orgId') orgId: string,
     @Param('memberId') memberId: string,
-    @Body() dto: UpdateMemberDto
+    @Body() dto: UpdateMemberDto,
   ) {
     return this.organizationsService.updateMember(orgId, memberId, dto);
   }
@@ -67,7 +75,10 @@ export class OrganizationsController {
   @Roles('owner', 'admin')
   @UseGuards(AuthGuard, RbacGuard)
   @Delete('organizations/:orgId/members/:memberId')
-  async removeMember(@Param('orgId') orgId: string, @Param('memberId') memberId: string) {
+  async removeMember(
+    @Param('orgId') orgId: string,
+    @Param('memberId') memberId: string,
+  ) {
     return this.organizationsService.removeMember(orgId, memberId);
   }
 
@@ -77,7 +88,7 @@ export class OrganizationsController {
   async invite(
     @Param('orgId') orgId: string,
     @Req() req: any,
-    @Body() dto: InviteMemberDto
+    @Body() dto: InviteMemberDto,
   ) {
     return this.organizationsService.invite(orgId, req.user.id, dto);
   }
@@ -93,7 +104,7 @@ export class OrganizationsController {
   @Delete('organizations/:orgId/invitations/:invitationId')
   async cancelInvitation(
     @Param('orgId') orgId: string,
-    @Param('invitationId') invitationId: string
+    @Param('invitationId') invitationId: string,
   ) {
     return this.organizationsService.cancelInvitation(orgId, invitationId);
   }
@@ -104,9 +115,13 @@ export class OrganizationsController {
   async transferOwnership(
     @Param('orgId') orgId: string,
     @Req() req: any,
-    @Body('newOwnerMemberId') newOwnerMemberId: string
+    @Body('newOwnerMemberId') newOwnerMemberId: string,
   ) {
-    return this.organizationsService.transferOwnership(orgId, req.user.id, newOwnerMemberId);
+    return this.organizationsService.transferOwnership(
+      orgId,
+      req.user.id,
+      newOwnerMemberId,
+    );
   }
 
   @Roles('owner')

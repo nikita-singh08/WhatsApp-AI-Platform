@@ -1,10 +1,15 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import * as jwt from 'jsonwebtoken';
 
 @Injectable()
 export class SuperAdminService {
-  private readonly jwtSecret = process.env.ENCRYPTION_KEY || 'default_jwt_secret_key';
+  private readonly jwtSecret =
+    process.env.ENCRYPTION_KEY || 'default_jwt_secret_key';
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -42,16 +47,17 @@ export class SuperAdminService {
         });
 
         // Sum tokens from daily tracking
-        const dailyTracking = await this.prisma.client.dailyCostTracking.aggregate({
-          where: {
-            organizationId: org.id,
-            date: { gte: currentMonthStart },
-          },
-          _sum: {
-            totalTokens: true,
-            estimatedCostCents: true,
-          },
-        });
+        const dailyTracking =
+          await this.prisma.client.dailyCostTracking.aggregate({
+            where: {
+              organizationId: org.id,
+              date: { gte: currentMonthStart },
+            },
+            _sum: {
+              totalTokens: true,
+              estimatedCostCents: true,
+            },
+          });
 
         return {
           id: org.id,
@@ -76,7 +82,7 @@ export class SuperAdminService {
             estimatedCostCents: dailyTracking._sum.estimatedCostCents || 0,
           },
         };
-      })
+      }),
     );
 
     return telemetry;
@@ -149,7 +155,12 @@ export class SuperAdminService {
   /**
    * Configure/Toggle Feature Flag Override for a workspace
    */
-  async toggleFeatureFlag(orgId: string, key: string, enabled: boolean, adminUserId: string) {
+  async toggleFeatureFlag(
+    orgId: string,
+    key: string,
+    enabled: boolean,
+    adminUserId: string,
+  ) {
     const org = await this.prisma.client.organization.findUnique({
       where: { id: orgId },
     });
@@ -204,7 +215,9 @@ export class SuperAdminService {
     }
 
     if (targetUser.isPlatformAdmin) {
-      throw new BadRequestException('Cannot impersonate another platform administrator.');
+      throw new BadRequestException(
+        'Cannot impersonate another platform administrator.',
+      );
     }
 
     // Generate token valid for 2 hours with impersonation signature
@@ -214,7 +227,7 @@ export class SuperAdminService {
         impersonatorUserId: adminUserId,
       },
       this.jwtSecret,
-      { expiresIn: '2h' }
+      { expiresIn: '2h' },
     );
 
     // Create Audit Log

@@ -1,6 +1,16 @@
-import { Injectable, BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { CreateOrganizationDto, UpdateOrganizationDto, InviteMemberDto, UpdateMemberDto } from './dto/organization.dto';
+import {
+  CreateOrganizationDto,
+  UpdateOrganizationDto,
+  InviteMemberDto,
+  UpdateMemberDto,
+} from './dto/organization.dto';
 import * as crypto from 'crypto';
 import { NotificationDispatcher } from '@whatsai/notifications';
 import { BillingService } from '../billing/billing.service';
@@ -39,11 +49,18 @@ export class OrganizationsService {
     });
 
     if (domainConflict) {
-      throw new BadRequestException(`An organization on the free tier already exists for the domain: ${emailDomain}`);
+      throw new BadRequestException(
+        `An organization on the free tier already exists for the domain: ${emailDomain}`,
+      );
     }
 
     // Generate slug if not provided
-    const slug = dto.slug || dto.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    const slug =
+      dto.slug ||
+      dto.name
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/(^-|-$)/g, '');
 
     // Check slug uniqueness
     const slugConflict = await this.prisma.client.organization.findUnique({
@@ -51,7 +68,9 @@ export class OrganizationsService {
     });
 
     if (slugConflict) {
-      throw new BadRequestException('Organization slug is already taken. Please choose a different slug.');
+      throw new BadRequestException(
+        'Organization slug is already taken. Please choose a different slug.',
+      );
     }
 
     // Create organization transaction
@@ -172,7 +191,9 @@ export class OrganizationsService {
     }
 
     if (member.role === 'owner') {
-      throw new BadRequestException('Cannot modify the role of the organization owner. Use the transfer-ownership route.');
+      throw new BadRequestException(
+        'Cannot modify the role of the organization owner. Use the transfer-ownership route.',
+      );
     }
 
     return this.prisma.client.organizationMember.update({
@@ -197,7 +218,9 @@ export class OrganizationsService {
     }
 
     if (member.role === 'owner') {
-      throw new BadRequestException('The owner cannot be removed from the organization.');
+      throw new BadRequestException(
+        'The owner cannot be removed from the organization.',
+      );
     }
 
     await this.prisma.client.organizationMember.delete({
@@ -220,15 +243,18 @@ export class OrganizationsService {
     }
 
     // Check if the user is already a member
-    const existingMember = await this.prisma.client.organizationMember.findFirst({
-      where: {
-        organizationId: orgId,
-        user: { email: dto.email },
-      },
-    });
+    const existingMember =
+      await this.prisma.client.organizationMember.findFirst({
+        where: {
+          organizationId: orgId,
+          user: { email: dto.email },
+        },
+      });
 
     if (existingMember) {
-      throw new BadRequestException('User is already a member of this organization');
+      throw new BadRequestException(
+        'User is already a member of this organization',
+      );
     }
 
     // Check for existing pending invitation
@@ -242,7 +268,9 @@ export class OrganizationsService {
     });
 
     if (existingInvite) {
-      throw new BadRequestException('A pending invitation has already been sent to this email');
+      throw new BadRequestException(
+        'A pending invitation has already been sent to this email',
+      );
     }
 
     // Enforce seats limit
@@ -320,7 +348,11 @@ export class OrganizationsService {
       include: { organization: true },
     });
 
-    if (!invite || invite.status !== 'pending' || invite.expiresAt < new Date()) {
+    if (
+      !invite ||
+      invite.status !== 'pending' ||
+      invite.expiresAt < new Date()
+    ) {
       throw new BadRequestException('Invalid or expired invitation token');
     }
 
@@ -333,7 +365,9 @@ export class OrganizationsService {
     }
 
     if (user.email !== invite.email) {
-      throw new ForbiddenException('This invitation was sent to a different email address');
+      throw new ForbiddenException(
+        'This invitation was sent to a different email address',
+      );
     }
 
     // Add user as member
@@ -366,21 +400,31 @@ export class OrganizationsService {
   /**
    * Transfer Organization Ownership to another member
    */
-  async transferOwnership(orgId: string, actorUserId: string, newOwnerMemberId: string) {
+  async transferOwnership(
+    orgId: string,
+    actorUserId: string,
+    newOwnerMemberId: string,
+  ) {
     const currentOwner = await this.prisma.client.organizationMember.findFirst({
       where: { organizationId: orgId, role: 'owner', userId: actorUserId },
     });
 
     if (!currentOwner) {
-      throw new ForbiddenException('Only the current organization owner can transfer ownership.');
+      throw new ForbiddenException(
+        'Only the current organization owner can transfer ownership.',
+      );
     }
 
-    const targetMember = await this.prisma.client.organizationMember.findUnique({
-      where: { id: newOwnerMemberId },
-    });
+    const targetMember = await this.prisma.client.organizationMember.findUnique(
+      {
+        where: { id: newOwnerMemberId },
+      },
+    );
 
     if (!targetMember || targetMember.organizationId !== orgId) {
-      throw new NotFoundException('Target new owner member not found in this organization.');
+      throw new NotFoundException(
+        'Target new owner member not found in this organization.',
+      );
     }
 
     await this.prisma.client.$transaction([

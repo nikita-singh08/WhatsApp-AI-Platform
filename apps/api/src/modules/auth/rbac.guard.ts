@@ -1,4 +1,9 @@
-import { CanActivate, ExecutionContext, Injectable, ForbiddenException } from '@nestjs/common';
+import {
+  CanActivate,
+  ExecutionContext,
+  Injectable,
+  ForbiddenException,
+} from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { UserRole } from '@whatsai/shared';
 import { ROLES_KEY } from './roles.decorator';
@@ -8,10 +13,10 @@ export class RbacGuard implements CanActivate {
   constructor(private readonly reflector: Reflector) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const requiredRoles = this.reflector.getAllAndOverride<UserRole[]>(ROLES_KEY, [
-      context.getHandler(),
-      context.getClass(),
-    ]);
+    const requiredRoles = this.reflector.getAllAndOverride<UserRole[]>(
+      ROLES_KEY,
+      [context.getHandler(), context.getClass()],
+    );
 
     const request = context.switchToHttp().getRequest();
     const user = request.user;
@@ -35,7 +40,7 @@ export class RbacGuard implements CanActivate {
 
     // Find user's membership in the target organization
     const membership = user.memberships?.find(
-      (m: any) => m.organizationId === organizationId && m.status === 'active'
+      (m: any) => m.organizationId === organizationId && m.status === 'active',
     );
 
     if (!membership) {
@@ -62,7 +67,9 @@ export class RbacGuard implements CanActivate {
     const hasRole = requiredRoles.some((role) => allowedRoles.includes(role));
 
     if (!hasRole) {
-      throw new ForbiddenException('Insufficient permissions in this organization');
+      throw new ForbiddenException(
+        'Insufficient permissions in this organization',
+      );
     }
 
     return true;

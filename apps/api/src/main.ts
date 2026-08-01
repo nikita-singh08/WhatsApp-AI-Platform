@@ -15,12 +15,16 @@ async function bootstrap() {
           defaultSrc: ["'self'"],
           scriptSrc: ["'self'", "'unsafe-inline'"],
           styleSrc: ["'self'", "'unsafe-inline'"],
-          imgSrc: ["'self'", "data:", "https://*.facebook.com"],
-          connectSrc: ["'self'", "https://*.facebook.com"],
-          frameAncestors: ["'self'", "https://*.facebook.com", "https://*.workplace.com"],
+          imgSrc: ["'self'", 'data:', 'https://*.facebook.com'],
+          connectSrc: ["'self'", 'https://*.facebook.com'],
+          frameAncestors: [
+            "'self'",
+            'https://*.facebook.com',
+            'https://*.workplace.com',
+          ],
         },
       },
-    })
+    }),
   );
 
   // Set up cookie-parser for session management
@@ -40,7 +44,7 @@ async function bootstrap() {
       whitelist: true,
       transform: true,
       forbidNonWhitelisted: true,
-    })
+    }),
   );
 
   const port = process.env.PORT || 3001;

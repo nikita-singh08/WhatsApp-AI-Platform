@@ -41,7 +41,12 @@ export class ConversationsController {
   ) {
     const pageNum = page ? parseInt(page, 10) : 1;
     const limitNum = limit ? parseInt(limit, 10) : 50;
-    return this.conversationsService.findMessages(orgId, convId, pageNum, limitNum);
+    return this.conversationsService.findMessages(
+      orgId,
+      convId,
+      pageNum,
+      limitNum,
+    );
   }
 
   @Post(':convId/messages')
@@ -53,7 +58,12 @@ export class ConversationsController {
     @Body() dto: ManualReplyDto,
   ) {
     const operatorUserId = req.user.id;
-    return this.conversationsService.manualReply(orgId, convId, operatorUserId, dto.content);
+    return this.conversationsService.manualReply(
+      orgId,
+      convId,
+      operatorUserId,
+      dto.content,
+    );
   }
 
   @Post(':convId/takeover')

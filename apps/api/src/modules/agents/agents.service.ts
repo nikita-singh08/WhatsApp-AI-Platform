@@ -1,4 +1,8 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateAgentDto, UpdateAgentDto } from './dto/agent.dto';
 import { MemoryService } from '../memory/memory.service';
@@ -101,7 +105,12 @@ export class AgentsService {
   /**
    * Update Agent settings and save to version history
    */
-  async update(orgId: string, agentId: string, userId: string, dto: UpdateAgentDto) {
+  async update(
+    orgId: string,
+    agentId: string,
+    userId: string,
+    dto: UpdateAgentDto,
+  ) {
     const agent = await this.prisma.client.agent.findFirst({
       where: { id: agentId, organizationId: orgId },
     });
@@ -179,7 +188,11 @@ export class AgentsService {
   /**
    * Activate Agent and assign it to a WhatsApp Number ID
    */
-  async activateAgent(orgId: string, agentId: string, whatsappAccountId: string) {
+  async activateAgent(
+    orgId: string,
+    agentId: string,
+    whatsappAccountId: string,
+  ) {
     const agent = await this.prisma.client.agent.findFirst({
       where: { id: agentId, organizationId: orgId },
     });
@@ -193,7 +206,9 @@ export class AgentsService {
     });
 
     if (!waAccount) {
-      throw new NotFoundException('WhatsApp account not found in this organization');
+      throw new NotFoundException(
+        'WhatsApp account not found in this organization',
+      );
     }
 
     if (agent.status !== 'active') {
@@ -253,7 +268,12 @@ export class AgentsService {
   /**
    * Synchronously simulate agent reasoning path
    */
-  async simulate(orgId: string, agentId: string, query: string, contactId?: string) {
+  async simulate(
+    orgId: string,
+    agentId: string,
+    query: string,
+    contactId?: string,
+  ) {
     const agent = await this.prisma.client.agent.findFirst({
       where: { id: agentId, organizationId: orgId },
     });
@@ -269,11 +289,17 @@ export class AgentsService {
     // 2. Fetch Long-Term Memory facts (LTM)
     let ltmFacts: string[] = [];
     if (contactId) {
-      ltmFacts = await this.memoryService.queryLongTermMemory(orgId, contactId, query, 2);
+      ltmFacts = await this.memoryService.queryLongTermMemory(
+        orgId,
+        contactId,
+        query,
+        2,
+      );
     }
-    const ltmContext = ltmFacts.length > 0
-      ? `Relevant historical customer facts:\n${ltmFacts.map((f: any) => `- ${f}`).join('\n')}`
-      : '';
+    const ltmContext =
+      ltmFacts.length > 0
+        ? `Relevant historical customer facts:\n${ltmFacts.map((f: any) => `- ${f}`).join('\n')}`
+        : '';
 
     // 3. Setup single user prompt query context
     const history: LLMMessage[] = [{ role: 'user', content: query }];
@@ -299,7 +325,10 @@ ${kbContext}
 
     // 6. Apply safety scrub simulation
     let sanitizedText = response.text
-      .replace(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, '[EMAIL MASKED]')
+      .replace(
+        /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g,
+        '[EMAIL MASKED]',
+      )
       .replace(/\+?[0-9]{3}-?[0-9]{6,10}/g, '[PHONE MASKED]');
     const badWords = [/fuck/gi, /shit/gi, /bitch/gi, /asshole/gi];
     for (const pattern of badWords) {

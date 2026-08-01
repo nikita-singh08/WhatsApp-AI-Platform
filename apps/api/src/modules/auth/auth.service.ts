@@ -1,4 +1,8 @@
-import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  UnauthorizedException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { SignupDto } from './dto/signup.dto';
 import { LoginDto } from './dto/login.dto';
@@ -10,7 +14,8 @@ import { NotificationDispatcher } from '@whatsai/notifications';
 
 @Injectable()
 export class AuthService {
-  private readonly jwtSecret = process.env.ENCRYPTION_KEY || 'default_jwt_secret_key';
+  private readonly jwtSecret =
+    process.env.ENCRYPTION_KEY || 'default_jwt_secret_key';
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -60,7 +65,7 @@ export class AuthService {
     const verificationToken = jwt.sign(
       { userId: user.id, type: 'email-verification' },
       this.jwtSecret,
-      { expiresIn: '1d' }
+      { expiresIn: '1d' },
     );
 
     const verificationLink = `${process.env.APP_URL || 'http://localhost:3000'}/verify-email?token=${verificationToken}`;
@@ -83,8 +88,11 @@ export class AuthService {
    */
   async verifyEmail(token: string) {
     try {
-      const decoded = jwt.verify(token, this.jwtSecret) as { userId: string; type: string };
-      
+      const decoded = jwt.verify(token, this.jwtSecret) as {
+        userId: string;
+        type: string;
+      };
+
       if (decoded.type !== 'email-verification') {
         throw new BadRequestException('Invalid token type');
       }
@@ -108,7 +116,9 @@ export class AuthService {
 
       return { message: 'Email verified successfully' };
     } catch (error) {
-      throw new BadRequestException('Invalid or expired email verification link');
+      throw new BadRequestException(
+        'Invalid or expired email verification link',
+      );
     }
   }
 
@@ -127,8 +137,12 @@ export class AuthService {
 
     // Check account lockout status
     if (user.lockedUntil && user.lockedUntil > new Date()) {
-      const waitTimeMinutes = Math.ceil((user.lockedUntil.getTime() - Date.now()) / (1000 * 60));
-      throw new UnauthorizedException(`Account locked due to multiple failed login attempts. Try again in ${waitTimeMinutes} minutes.`);
+      const waitTimeMinutes = Math.ceil(
+        (user.lockedUntil.getTime() - Date.now()) / (1000 * 60),
+      );
+      throw new UnauthorizedException(
+        `Account locked due to multiple failed login attempts. Try again in ${waitTimeMinutes} minutes.`,
+      );
     }
 
     const passwordMatch = user.passwordHash
@@ -150,12 +164,16 @@ export class AuthService {
 
     // Check email verification
     if (!user.emailVerifiedAt) {
-      throw new UnauthorizedException('Email verification is required before login.');
+      throw new UnauthorizedException(
+        'Email verification is required before login.',
+      );
     }
 
     // Check MFA Methods
-    const mfaEnabledMethod = user.mfaMethods.find((m) => m.method === 'totp' && m.isEnabled);
-    
+    const mfaEnabledMethod = user.mfaMethods.find(
+      (m) => m.method === 'totp' && m.isEnabled,
+    );
+
     if (mfaEnabledMethod) {
       if (!dto.mfaCode) {
         return { mfaRequired: true, userId: user.id };
@@ -185,18 +203,25 @@ export class AuthService {
     };
   }
 
-  private async handleFailedLoginAttempt(userId: string, currentAttempts: number) {
+  private async handleFailedLoginAttempt(
+    userId: string,
+    currentAttempts: number,
+  ) {
     const nextAttempts = currentAttempts + 1;
     let lockedUntil: Date | null = null;
 
     if (nextAttempts >= 10) {
       // Permanent lock (100 years / until email verification/unlock)
       lockedUntil = new Date(Date.now() + 100 * 365 * 24 * 60 * 60 * 1000);
-      console.log(`[Auth] User ${userId} reached 10 failed login attempts. Account locked permanently until email unlock.`);
+      console.log(
+        `[Auth] User ${userId} reached 10 failed login attempts. Account locked permanently until email unlock.`,
+      );
     } else if (nextAttempts >= 5) {
       // 15-minute lock
       lockedUntil = new Date(Date.now() + 15 * 60 * 1000);
-      console.log(`[Auth] User ${userId} reached 5 failed login attempts. Account locked for 15 minutes.`);
+      console.log(
+        `[Auth] User ${userId} reached 5 failed login attempts. Account locked for 15 minutes.`,
+      );
     }
 
     await this.prisma.client.user.update({
@@ -241,11 +266,7 @@ export class AuthService {
       },
     });
 
-    const qrCodeUrl = authenticator.keyuri(
-      user.email,
-      'WhatsAI',
-      secret
-    );
+    const qrCodeUrl = authenticator.keyuri(user.email, 'WhatsAI', secret);
 
     return {
       secret, // Provide raw secret for manual copy-paste
@@ -329,13 +350,15 @@ export class AuthService {
 
     if (!user) {
       // Avoid user enumeration - return success anyway
-      return { message: 'If the email exists, a password reset link has been sent.' };
+      return {
+        message: 'If the email exists, a password reset link has been sent.',
+      };
     }
 
     const token = jwt.sign(
       { userId: user.id, type: 'password-reset' },
       this.jwtSecret,
-      { expiresIn: '1h' }
+      { expiresIn: '1h' },
     );
 
     const resetLink = `${process.env.APP_URL || 'http://localhost:3000'}/reset-password?token=${token}`;
@@ -346,7 +369,9 @@ export class AuthService {
       body: `Hi ${user.name},\n\nPlease reset your password by clicking the link below:\n${resetLink}\n\nThis link will expire in 1 hour.`,
     });
 
-    return { message: 'If the email exists, a password reset link has been sent.' };
+    return {
+      message: 'If the email exists, a password reset link has been sent.',
+    };
   }
 
   /**
@@ -354,8 +379,11 @@ export class AuthService {
    */
   async resetPassword(token: string, newPassword: string) {
     try {
-      const decoded = jwt.verify(token, this.jwtSecret) as { userId: string; type: string };
-      
+      const decoded = jwt.verify(token, this.jwtSecret) as {
+        userId: string;
+        type: string;
+      };
+
       if (decoded.type !== 'password-reset') {
         throw new BadRequestException('Invalid token type');
       }

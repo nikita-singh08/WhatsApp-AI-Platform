@@ -1,4 +1,14 @@
-import { Controller, Get, Post, Body, Param, Req, Res, UseGuards, BadRequestException } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  Req,
+  Res,
+  UseGuards,
+  BadRequestException,
+} from '@nestjs/common';
 import { SuperAdminService } from './super-admin.service';
 import { AuthGuard } from '../auth/auth.guard';
 import { PlatformAdminGuard } from '../auth/platform-admin.guard';
@@ -28,25 +38,37 @@ export class SuperAdminController {
     @Param('orgId') orgId: string,
     @Body('key') key: string,
     @Body('enabled') enabled: boolean,
-    @Req() req: any
+    @Req() req: any,
   ) {
     if (!key || enabled === undefined) {
-      throw new BadRequestException('Feature flag key and enabled toggle values are required.');
+      throw new BadRequestException(
+        'Feature flag key and enabled toggle values are required.',
+      );
     }
-    return this.superAdminService.toggleFeatureFlag(orgId, key, enabled, req.user.id);
+    return this.superAdminService.toggleFeatureFlag(
+      orgId,
+      key,
+      enabled,
+      req.user.id,
+    );
   }
 
   @Post('impersonate')
   async impersonate(
     @Req() req: any,
     @Res({ passthrough: true }) res: any,
-    @Body('targetUserId') targetUserId: string
+    @Body('targetUserId') targetUserId: string,
   ) {
     if (!targetUserId) {
-      throw new BadRequestException('Target user identifier parameter is required.');
+      throw new BadRequestException(
+        'Target user identifier parameter is required.',
+      );
     }
-    const result = await this.superAdminService.impersonateUser(req.user.id, targetUserId);
-    
+    const result = await this.superAdminService.impersonateUser(
+      req.user.id,
+      targetUserId,
+    );
+
     res.cookie('whatsai_session', result.sessionToken, {
       httpOnly: true,
       secure: false,

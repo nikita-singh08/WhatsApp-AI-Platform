@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { WebsocketsGateway } from '../websockets/websockets.gateway';
 import { WhatsappClient } from '@whatsai/integrations';
@@ -34,7 +38,12 @@ export class ConversationsService {
     return { items, total, page, limit };
   }
 
-  async findMessages(orgId: string, convId: string, page: number = 1, limit: number = 50) {
+  async findMessages(
+    orgId: string,
+    convId: string,
+    page: number = 1,
+    limit: number = 50,
+  ) {
     const skip = (page - 1) * limit;
 
     const conversation = await this.prisma.client.conversation.findFirst({
@@ -59,7 +68,12 @@ export class ConversationsService {
     return { items, total, page, limit };
   }
 
-  async manualReply(orgId: string, convId: string, operatorUserId: string, content: string) {
+  async manualReply(
+    orgId: string,
+    convId: string,
+    operatorUserId: string,
+    content: string,
+  ) {
     const conversation = await this.prisma.client.conversation.findFirst({
       where: { id: convId, organizationId: orgId },
       include: {
@@ -77,7 +91,9 @@ export class ConversationsService {
     });
 
     if (!whatsappAccount) {
-      throw new BadRequestException('No active WhatsApp business account connected for this workspace');
+      throw new BadRequestException(
+        'No active WhatsApp business account connected for this workspace',
+      );
     }
 
     const decryptedToken = decrypt(whatsappAccount.accessTokenEncrypted);
@@ -118,7 +134,8 @@ export class ConversationsService {
           senderType: 'system',
           direction: 'outbound',
           messageType: 'text',
-          textBody: 'Manual Operator Takeover initiated. AI auto-responses are paused.',
+          textBody:
+            'Manual Operator Takeover initiated. AI auto-responses are paused.',
           deliveryStatus: 'sent',
         },
       });
@@ -148,7 +165,11 @@ export class ConversationsService {
     // 4. Broadcast events
     this.websockets.broadcastToOrg(orgId, 'message.created', message);
     if (!isAlreadyTakeover) {
-      this.websockets.broadcastToOrg(orgId, 'conversation.updated', updatedConv);
+      this.websockets.broadcastToOrg(
+        orgId,
+        'conversation.updated',
+        updatedConv,
+      );
     }
 
     return message;
@@ -226,7 +247,7 @@ export class ConversationsService {
             },
           });
           return { op, count };
-        })
+        }),
       );
 
       // 3. Sort by workload (ascending)

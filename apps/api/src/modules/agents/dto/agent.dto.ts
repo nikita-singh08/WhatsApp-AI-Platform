@@ -1,4 +1,11 @@
-import { IsNotEmpty, IsString, IsOptional, IsEnum, IsBoolean, IsJSON } from 'class-validator';
+import {
+  IsNotEmpty,
+  IsString,
+  IsOptional,
+  IsEnum,
+  IsBoolean,
+  IsJSON,
+} from 'class-validator';
 
 export class CreateAgentDto {
   @IsString()

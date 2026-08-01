@@ -40,7 +40,13 @@ export class KnowledgeBaseController {
     @Param('kbId') kbId: string,
     @Body() dto: UploadDocumentDto,
   ) {
-    return this.kbService.uploadDocument(orgId, kbId, dto.title, dto.content, dto.fileName);
+    return this.kbService.uploadDocument(
+      orgId,
+      kbId,
+      dto.title,
+      dto.content,
+      dto.fileName,
+    );
   }
 
   @Get('query')

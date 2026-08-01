@@ -25,7 +25,7 @@ export class TemplatesController {
   async create(
     @Param('orgId') orgId: string,
     @Body('whatsappAccountId') whatsappAccountId: string,
-    @Body() data: any
+    @Body() data: any,
   ) {
     return this.templatesService.create(orgId, whatsappAccountId, data);
   }
@@ -38,10 +38,7 @@ export class TemplatesController {
 
   @Get(':id')
   @Roles('admin', 'operator', 'readonly')
-  async findOne(
-    @Param('orgId') orgId: string,
-    @Param('id') id: string
-  ) {
+  async findOne(@Param('orgId') orgId: string, @Param('id') id: string) {
     return this.templatesService.findOne(orgId, id);
   }
 
@@ -50,27 +47,21 @@ export class TemplatesController {
   async update(
     @Param('orgId') orgId: string,
     @Param('id') id: string,
-    @Body() data: any
+    @Body() data: any,
   ) {
     return this.templatesService.update(orgId, id, data);
   }
 
   @Delete(':id')
   @Roles('owner', 'admin')
-  async remove(
-    @Param('orgId') orgId: string,
-    @Param('id') id: string
-  ) {
+  async remove(@Param('orgId') orgId: string, @Param('id') id: string) {
     return this.templatesService.remove(orgId, id);
   }
 
   @Post(':id/submit')
   @Roles('owner', 'admin')
   @HttpCode(HttpStatus.OK)
-  async submit(
-    @Param('orgId') orgId: string,
-    @Param('id') id: string
-  ) {
+  async submit(@Param('orgId') orgId: string, @Param('id') id: string) {
     return this.templatesService.submitToMeta(orgId, id);
   }
 
@@ -81,8 +72,13 @@ export class TemplatesController {
     @Param('orgId') orgId: string,
     @Param('id') id: string,
     @Body('recipientWaId') recipientWaId: string,
-    @Body('variables') variables: any[]
+    @Body('variables') variables: any[],
   ) {
-    return this.templatesService.sendTemplate(orgId, id, recipientWaId, variables);
+    return this.templatesService.sendTemplate(
+      orgId,
+      id,
+      recipientWaId,
+      variables,
+    );
   }
 }

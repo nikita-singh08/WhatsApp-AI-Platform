@@ -16,6 +16,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 import { SuperAdminModule } from './modules/super-admin/super-admin.module';
 import { GDPRModule } from './modules/gdpr/gdpr.module';
 import { IntegrationsModule } from './modules/integrations/integrations.module';
+import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 
@@ -29,17 +30,20 @@ import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
     }),
 
     // Configure global Throttler rate limiter: 100 requests per 15 minutes
-    ThrottlerModule.forRoot([{
-      ttl: 900000,
-      limit: 100,
-    }]),
+    ThrottlerModule.forRoot([
+      {
+        ttl: 900000,
+        limit: 100,
+      },
+    ]),
 
     // Configure BullMQ background queues connected to Redis
     BullModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => {
-        const redisUrl = configService.get<string>('REDIS_URL') || 'redis://localhost:6379';
-        
+        const redisUrl =
+          configService.get<string>('REDIS_URL') || 'redis://localhost:6379';
+
         // Parse Redis connection details
         try {
           const parsed = new URL(redisUrl);
@@ -77,6 +81,7 @@ import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
     NotificationsModule,
     SuperAdminModule,
     GDPRModule,
+    AnalyticsModule,
   ],
   providers: [
     {

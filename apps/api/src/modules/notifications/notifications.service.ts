@@ -22,13 +22,21 @@ export class NotificationsService {
   /**
    * Update notification preference channel
    */
-  async updatePreference(orgId: string, userId: string, type: string, channel: string) {
+  async updatePreference(
+    orgId: string,
+    userId: string,
+    type: string,
+    channel: string,
+  ) {
     if (!['email', 'in_app', 'in_app_and_email', 'none'].includes(channel)) {
       throw new Error('Invalid notification channel option.');
     }
 
     // Critical configurations cannot be set to 'none' or completely disabled
-    if (['billing_failure', 'whatsapp_failure', 'cost_cap'].includes(type) && channel === 'none') {
+    if (
+      ['billing_failure', 'whatsapp_failure', 'cost_cap'].includes(type) &&
+      channel === 'none'
+    ) {
       throw new Error('Critical service alerts cannot be fully disabled.');
     }
 
@@ -58,11 +66,18 @@ export class NotificationsService {
   async dispatchNotification(
     orgId: string,
     params: {
-      type: 'escalation' | 'whatsapp_failure' | 'billing_failure' | 'document_failure' | 'quality_drop' | 'limit_warning' | 'cost_cap';
+      type:
+        | 'escalation'
+        | 'whatsapp_failure'
+        | 'billing_failure'
+        | 'document_failure'
+        | 'quality_drop'
+        | 'limit_warning'
+        | 'cost_cap';
       title: string;
       body: string;
       userId?: string; // Optional target user, otherwise alerts all admins/operators
-    }
+    },
   ) {
     // 1. Find target recipients (admins and operators in the workspace)
     const members = await this.prisma.client.organizationMember.findMany({
@@ -74,7 +89,9 @@ export class NotificationsService {
       include: { user: true },
     });
 
-    const targets = params.userId ? members.filter((m) => m.userId === params.userId) : members;
+    const targets = params.userId
+      ? members.filter((m) => m.userId === params.userId)
+      : members;
 
     for (const member of targets) {
       // 2. Resolve preference channel
@@ -102,12 +119,19 @@ export class NotificationsService {
       }
 
       // 4. Dispatch Email
-      if (channel.includes('email') || ['billing_failure', 'whatsapp_failure', 'cost_cap'].includes(params.type)) {
+      if (
+        channel.includes('email') ||
+        ['billing_failure', 'whatsapp_failure', 'cost_cap'].includes(
+          params.type,
+        )
+      ) {
         await NotificationDispatcher.sendEmail({
           to: member.user.email,
           subject: `[WhatsAI Alert] ${params.title}`,
           body: `Hi ${member.user.name || 'Workspace User'},\n\nWe have detected a new workspace alert:\n\nTitle: ${params.title}\nDescription: ${params.body}\n\nManage your notification settings in your dashboard general preferences pane.\n\nBest Regards,\nWhatsAI Team`,
-        }).catch((err) => console.error('[NotificationsService] Email dispatch failed:', err));
+        }).catch((err) =>
+          console.error('[NotificationsService] Email dispatch failed:', err),
+        );
       }
     }
   }

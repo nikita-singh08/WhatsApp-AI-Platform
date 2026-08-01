@@ -13,7 +13,9 @@ import * as cookie from 'cookie';
     credentials: true,
   },
 })
-export class WebsocketsGateway implements OnGatewayConnection, OnGatewayDisconnect {
+export class WebsocketsGateway
+  implements OnGatewayConnection, OnGatewayDisconnect
+{
   @WebSocketServer()
   server: Server;
 

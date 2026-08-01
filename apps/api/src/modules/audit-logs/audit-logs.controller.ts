@@ -1,4 +1,11 @@
-import { Controller, Get, Param, Query, UseGuards, ParseIntPipe } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Param,
+  Query,
+  UseGuards,
+  ParseIntPipe,
+} from '@nestjs/common';
 import { AuditLogsService } from './audit-logs.service';
 import { AuthGuard } from '../auth/auth.guard';
 import { RbacGuard } from '../auth/rbac.guard';
@@ -14,7 +21,7 @@ export class AuditLogsController {
   async getLogs(
     @Param('orgId') orgId: string,
     @Query('page') page = '1',
-    @Query('limit') limit = '25'
+    @Query('limit') limit = '25',
   ) {
     const pageNum = parseInt(page, 10) || 1;
     const limitNum = parseInt(limit, 10) || 25;

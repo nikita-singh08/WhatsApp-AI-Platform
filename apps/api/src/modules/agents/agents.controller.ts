@@ -30,7 +30,7 @@ export class AgentsController {
   async create(
     @Param('orgId') orgId: string,
     @Req() req: any,
-    @Body() dto: CreateAgentDto
+    @Body() dto: CreateAgentDto,
   ) {
     return this.agentsService.create(orgId, req.user.id, dto);
   }
@@ -43,7 +43,10 @@ export class AgentsController {
 
   @UseGuards(AuthGuard, RbacGuard)
   @Get('organizations/:orgId/agents/:agentId')
-  async findOne(@Param('orgId') orgId: string, @Param('agentId') agentId: string) {
+  async findOne(
+    @Param('orgId') orgId: string,
+    @Param('agentId') agentId: string,
+  ) {
     return this.agentsService.findOne(orgId, agentId);
   }
 
@@ -54,7 +57,7 @@ export class AgentsController {
     @Param('orgId') orgId: string,
     @Param('agentId') agentId: string,
     @Req() req: any,
-    @Body() dto: UpdateAgentDto
+    @Body() dto: UpdateAgentDto,
   ) {
     return this.agentsService.update(orgId, agentId, req.user.id, dto);
   }
@@ -66,7 +69,7 @@ export class AgentsController {
   async activateAgent(
     @Param('orgId') orgId: string,
     @Param('agentId') agentId: string,
-    @Body('whatsappAccountId') whatsappAccountId: string
+    @Body('whatsappAccountId') whatsappAccountId: string,
   ) {
     return this.agentsService.activateAgent(orgId, agentId, whatsappAccountId);
   }
@@ -75,7 +78,10 @@ export class AgentsController {
   @UseGuards(AuthGuard, RbacGuard)
   @Post('organizations/:orgId/agents/:agentId/archive')
   @HttpCode(HttpStatus.OK)
-  async archiveAgent(@Param('orgId') orgId: string, @Param('agentId') agentId: string) {
+  async archiveAgent(
+    @Param('orgId') orgId: string,
+    @Param('agentId') agentId: string,
+  ) {
     return this.agentsService.archiveAgent(orgId, agentId);
   }
 
@@ -86,7 +92,7 @@ export class AgentsController {
     @Param('orgId') orgId: string,
     @Param('agentId') agentId: string,
     @Body('query') query: string,
-    @Body('contactId') contactId?: string
+    @Body('contactId') contactId?: string,
   ) {
     return this.agentsService.simulate(orgId, agentId, query, contactId);
   }

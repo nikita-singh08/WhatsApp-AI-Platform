@@ -1,4 +1,13 @@
-import { Controller, Get, Patch, Body, Param, Req, UseGuards, BadRequestException } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Patch,
+  Body,
+  Param,
+  Req,
+  UseGuards,
+  BadRequestException,
+} from '@nestjs/common';
 import { NotificationsService } from './notifications.service';
 import { AuthGuard } from '../auth/auth.guard';
 import { RbacGuard } from '../auth/rbac.guard';
@@ -21,15 +30,24 @@ export class NotificationsController {
     @Param('orgId') orgId: string,
     @Req() req: any,
     @Body('type') type: string,
-    @Body('channel') channel: string
+    @Body('channel') channel: string,
   ) {
     if (!type || !channel) {
-      throw new BadRequestException('Notification alert type and channel parameters are required.');
+      throw new BadRequestException(
+        'Notification alert type and channel parameters are required.',
+      );
     }
     try {
-      return await this.notificationsService.updatePreference(orgId, req.user.id, type, channel);
+      return await this.notificationsService.updatePreference(
+        orgId,
+        req.user.id,
+        type,
+        channel,
+      );
     } catch (err: any) {
-      throw new BadRequestException(err.message || 'Failed to save preference details.');
+      throw new BadRequestException(
+        err.message || 'Failed to save preference details.',
+      );
     }
   }
 }

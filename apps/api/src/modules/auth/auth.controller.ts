@@ -45,7 +45,7 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   async login(@Body() dto: LoginDto, @Res({ passthrough: true }) res: any) {
     const result = await this.authService.login(dto);
-    
+
     if ('token' in result && result.token) {
       this.setSessionCookie(res, result.token);
       return {
@@ -53,7 +53,7 @@ export class AuthController {
         user: result.user,
       };
     }
-    
+
     return result; // returns { mfaRequired: true, userId }
   }
 
@@ -72,7 +72,10 @@ export class AuthController {
 
   @Post('auth/reset-password')
   @HttpCode(HttpStatus.OK)
-  async resetPassword(@Body('token') token: string, @Body('password') newPassword: string) {
+  async resetPassword(
+    @Body('token') token: string,
+    @Body('password') newPassword: string,
+  ) {
     return this.authService.resetPassword(token, newPassword);
   }
 
